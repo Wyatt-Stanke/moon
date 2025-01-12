@@ -1,0 +1,21 @@
+[package]
+name = "moon_extension_plugin"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "An extension plugin, allowing unique functionality."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+moon_config = { path = "../config" }
+moon_pdk_api = { path = "../pdk-api" }
+moon_plugin = { path = "../plugin" }
+async-trait = { workspace = true }
+miette = { workspace = true }
+rustc-hash = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

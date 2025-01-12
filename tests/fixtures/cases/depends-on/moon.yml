@@ -5,17 +5,42 @@ dependsOn:
   - depsB
   - depsC
 
+tags: [standard]
+
 tasks:
   standard:
-    command: node
-    args: -e "'noop'"
+    command: noop
+
+  noCache:
+    command: echo 'not cached'
+    platform: system
+    options:
+      cache: false
 
   serialDeps:
-    command: node
-    args: -e "'serial'"
+    command: noop
     deps:
       - 'depsB:standard'
       - 'depsC:standard'
       - 'depsA:standard'
     options:
       runDepsInParallel: false
+
+  depsOnNoop:
+    command: echo 'test'
+    platform: system
+    deps:
+      - 'standard'
+
+  depsOnNoCache:
+    command: echo 'test'
+    platform: system
+    deps:
+      - 'noCache'
+
+  depsOnNoopAndNoCache:
+    command: echo 'test'
+    platform: system
+    deps:
+      - 'standard'
+      - 'noCache'

@@ -1,0 +1,26 @@
+[package]
+name = "moon_task_graph"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Task graph for moon represented as a DAG."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+moon_common = { path = "../common" }
+moon_config = { path = "../config" }
+moon_graph_utils = { path = "../graph-utils" }
+moon_project_graph = { path = "../project-graph" }
+moon_target = { path = "../target" }
+moon_task = { path = "../task" }
+moon_task_expander = { path = "../task-expander" }
+miette = { workspace = true }
+petgraph = { workspace = true }
+rustc-hash = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

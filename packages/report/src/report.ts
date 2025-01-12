@@ -1,4 +1,4 @@
-import { Duration, RunReport } from '@moonrepo/types';
+import type { ActionStatus, Duration, RunReport } from '@moonrepo/types';
 import { getIconForStatus, isFlaky, isSlow } from './action';
 import { formatDuration, getDurationInMillis } from './time';
 
@@ -21,9 +21,8 @@ export function sortReport(report: RunReport, sortBy: 'label' | 'time', sortDir:
 				return isAsc ? al.localeCompare(dl) : dl.localeCompare(al);
 			}
 
-			default: {
+			default:
 				throw new Error(`Unknown sort by "${sortBy}".`);
-			}
 		}
 	});
 }
@@ -33,6 +32,7 @@ export interface PreparedAction {
 	duration: Duration | null;
 	icon: string;
 	label: string;
+	status: ActionStatus;
 	time: string;
 }
 
@@ -44,7 +44,13 @@ export function prepareReportActions(report: RunReport, slowThreshold: number): 
 			comments.push('**FLAKY**');
 		}
 
-		if (action.attempts && action.attempts.length > 1) {
+		if (action.operations && action.operations.length > 0) {
+			const attempts = action.operations.filter((op) => op.meta.type === 'task-execution');
+
+			if (attempts.length > 1) {
+				comments.push(`${attempts.length} attempts`);
+			}
+		} else if (action.attempts && action.attempts.length > 1) {
 			comments.push(`${action.attempts.length} attempts`);
 		}
 
@@ -57,6 +63,7 @@ export function prepareReportActions(report: RunReport, slowThreshold: number): 
 			duration: action.duration,
 			icon: getIconForStatus(action.status),
 			label: action.label ?? '<unknown>',
+			status: action.status,
 			time: formatDuration(action.duration),
 		};
 	});

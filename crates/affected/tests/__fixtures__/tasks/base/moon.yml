@@ -1,0 +1,17 @@
+tasks:
+  a: {}
+  b: {}
+  c: {}
+
+  by-env:
+    inputs:
+      - '$ENV'
+  by-file:
+    inputs:
+      - 'file.txt'
+  by-glob:
+    inputs:
+      - '*.txt'
+
+  no-inputs:
+    inputs: []

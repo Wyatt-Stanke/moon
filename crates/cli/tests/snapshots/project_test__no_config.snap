@@ -1,23 +1,24 @@
 ---
 source: crates/cli/tests/project_test.rs
-assertion_line: 33
-expression: get_assert_output(&assert)
+expression: assert.output()
 ---
-
  NOCONFIG 
 
-ID: noConfig
+Project: noConfig
 Source: no-config
-Language: Unknown
-Type: Unknown
+Toolchain: system
+Language: unknown
+Stack: unknown
+Type: unknown
+
+ INHERITS FROM 
+
+  - .moon/tasks.yml
 
  FILE GROUPS 
 
 sources:
- - src/**/*
- - types/**/*
+  - no-config/src/**/*
+  - no-config/types/**/*
 tests:
- - tests/**/*
-
-
-
+  - no-config/tests/**/*

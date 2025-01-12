@@ -1,0 +1,9 @@
+type: library
+
+toolchain:
+  default: node
+
+tasks:
+  node-library:
+    command: node-library
+    platform: node

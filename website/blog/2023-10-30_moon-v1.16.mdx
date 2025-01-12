@@ -1,0 +1,113 @@
+---
+slug: moon-v1.16
+title: moon v1.16 - Bun support, Rust improvements, and more!
+authors: [milesj]
+tags: [bun, rust, toolchain, automation, package, manager]
+image: ./img/moon/v1.16.png
+---
+
+With this release, we've focused on requests from the community, instead of internal migration work
+or new features.
+
+<!--truncate-->
+
+## Bun as a package manager
+
+Now that [Bun v1 has officially released](https://bun.sh/blog/bun-v1.0) and our
+[bun-plugin](https://github.com/moonrepo/bun-plugin) for proto has stabilized, we can start slowly
+integrating Bun support into moon. The first step in this series is adding Bun as a supported
+package manager for Node.js. Seems odd as they are conflicting runtimes... right? While true, a lot
+of users are interested in using Bun purely as a package manager, as it can install dependencies
+incredibly fast. So why not support it?
+
+In this release, you can now install dependencies with Bun by configuring
+[`node.packageManager`](/docs/config/toolchain#packagemanager) and
+[`node.bun`](/docs/config/toolchain#npm-pnpm-yarn-bun) in your toolchain.
+
+```yaml title=".moon/toolchain.yml"
+node:
+  packageManager: 'bun'
+  bun:
+    version: '1.0.0'
+```
+
+Additionally, you can now execute Bun commands within tasks! However, ensure the task's platform is
+still set to `node` though, as this is using Bun as a package manager within Node.js, not as a
+separate runtime.
+
+```yaml title="moon.yml"
+tasks:
+  test:
+    command: 'bun test'
+    platform: 'node'
+```
+
+When using Bun, the following integrations are applied:
+
+- Will automatically download and install Bun for the configured version.
+- Will install dependencies using `bun install` (deduping currently not supported).
+- Will parse `bun.lockb` for dependency resolution and task hashing.
+- Will use `bunx` instead of `npx` for one-off package executions.
+- Can execute `bun` commands within tasks.
+
+> This change _only_ adds support for Bun as a package manager for Node.js. It does not add Bun as a
+> supported language/platform in the toolchain, but it does pave the way for this to happen! Also
+> note that Bun _is not supported on Windows_!
+
+## Configure Rust components and targets
+
+We've had Rust tier 2 and 3 support for quite a while now, but there was a big missing piece: the
+ability to configure and install additional
+[components](https://rust-lang.github.io/rustup/concepts/components.html) and
+[targets](https://doc.rust-lang.org/nightly/rustc/platform-support.html) for the current toolchain.
+In this release, we've added support for both!
+
+Simply configure the [`rust.components`](/docs/config/toolchain#components) or
+[`rust.targets`](/docs/config/toolchain#targets) settings in
+[`.moon/toolchain.yml`](/docs/config/toolchain), and moon will automatically install them when the
+pipeline is ran. This functionality uses the same hashing implementation as
+[`rust.bins`](/docs/config/toolchain#bins-1), so will only install the first time, and again if the
+configuration changes (or the cache is removed).
+
+```yaml title=".moon/toolchain.yml"
+rust:
+  version: '1.73.0'
+  components:
+    - 'clippy'
+    - 'rust-analyzer'
+  targets:
+    - 'wasm32-wasi'
+```
+
+## Force toolchain to use global binaries
+
+Our [toolchain](/docs/concepts/toolchain) is great for local development, as it ensures all
+developers and machines are running the exact versions of tools required for the workspace. However,
+it becomes overkill for other environments like CI and Docker where the environment has been
+pre-configured.
+
+To avoid the unnecessary overhead of download and installing tools in the toolchain, we're
+introducing the `MOON_TOOLCHAIN_FORCE_GLOBALS` environment variable. When provided, this will:
+
+- Disable downloading and installing tools (will still download the WASM plugins).
+- Execute all tool commands using the global binary available on `PATH`.
+
+```shell
+MOON_TOOLCHAIN_FORCE_GLOBALS=true moon ci
+```
+
+> We're looking into ways to automate this process, but for now, this is the best solution.
+
+## Other changes
+
+View the [official release](https://github.com/moonrepo/moon/releases/tag/v1.16.0) for a full list
+of changes.
+
+- Added an improved task inheritance chain resolver. To fallback to the previous behavior, set
+  `experiments.interweavedTaskInheritance: false` in `.moon/workspace.yml`.
+- Added a new [project type `automation`](/docs/config/project#type), for projects like E2E and
+  integration testing.
+- Updated action graph cycle detection to list all nodes in the cycle (when detectable).
+- Updated all npx calls to use a package manager equivalent. For example: `yarn dlx`, `pnpm dlx`,
+  `bunx`.
+- Updated to support Yarn v4.

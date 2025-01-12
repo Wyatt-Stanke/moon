@@ -1,0 +1,18 @@
+[package]
+name = "moon_action_context"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[dependencies]
+moon_affected = { path = "../affected" }
+moon_common = { path = "../common" }
+moon_target = { path = "../target" }
+clap = { workspace = true }
+rustc-hash = { workspace = true }
+scc = { workspace = true, features = ["serde"] }
+serde = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

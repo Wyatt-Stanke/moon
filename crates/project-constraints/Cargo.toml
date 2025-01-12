@@ -1,0 +1,19 @@
+[package]
+name = "moon_project_constraints"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Enforce project constraints and boundaries."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+moon_common = { path = "../common" }
+moon_config = { path = "../config" }
+moon_project = { path = "../project" }
+miette = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

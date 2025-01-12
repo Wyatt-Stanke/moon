@@ -1,17 +1,14 @@
 ---
 source: crates/cli/tests/run_test.rs
-assertion_line: 1004
-expression: get_assert_output(&assert)
+expression: assert.output()
 ---
 ▪▪▪▪ npm install
 ▪▪▪▪ outputStyles:bufferFailureFail
-▪▪▪▪ outputStyles:bufferFailureFail (100ms)
 stdout
-
+▪▪▪▪ outputStyles:bufferFailureFail (100ms)
+▪▪▪▪ outputStyles:bufferFailureFailPrimary (skipped)
 stderr
+Error: task_runner::run_failed
 
-
- ERROR  Process ~/.moon/tools/node/16.0.0/bin/node failed with a 1 exit code.
-
-
-
+  × Task outputStyles:bufferFailureFail failed to run.
+  ╰─▶ Process node failed: exit code 1

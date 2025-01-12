@@ -5,6 +5,7 @@ title: Continuous integration (CI)
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import Image from '@site/src/components/Image';
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
 
 All companies and projects rely on continuous integration (CI) to ensure high quality code and to
 avoid regressions. Because this is such a critical piece of every developer's workflow, we wanted to
@@ -26,10 +27,9 @@ by automatically running the following steps:
 
 ## Configuring tasks
 
-By default, _all tasks_ run in CI, as you should always be building, linting, type-checking,
-testing, so on and so forth. However, this isn't always true, so this can be disabled on a per-task
-basis through the [`runInCI`](../config/project#runinci) or [`local`](../config/project#local)
-options.
+By default, _all tasks_ run in CI, as you should always be building, linting, typechecking, testing,
+so on and so forth. However, this isn't always true, so this can be disabled on a per-task basis
+through the [`runInCI`](../config/project#runinci) or [`local`](../config/project#local) options.
 
 ```yaml
 tasks:
@@ -51,15 +51,10 @@ by default. This can be easily controlled with the [`local`](../config/project#l
 
 ## Integrating
 
-Although moon has an [integrated toolchain](../concepts/toolchain), we still require Node.js and
-dependencies to be installed _beforehand_, as moon is currently shipped as an
-[npm package](https://www.npmjs.com/package/@moonrepo/cli). This is unfortunate and we're looking
-into other distribution channels.
-
-With that being said, the following examples can be referenced for setting up moon and its CI
-workflow in popular services. The examples assume a
-[package script named `moon`](../install#adding-a-package-script) and are using Yarn 3, but feel
-free to replace with your chosen setup.
+The following examples can be referenced for setting up moon and its CI workflow in popular
+providers. For GitHub, we're using our
+[`setup-toolchain` action](https://github.com/moonrepo/setup-toolchain) to install moon. For other
+providers, we assume moon is an npm dependency and must be installed with Node.js.
 
 <Tabs groupId="ci-env">
 <TabItem value="github" label="GitHub">
@@ -76,14 +71,11 @@ jobs:
     name: 'CI'
     runs-on: 'ubuntu-latest'
     steps:
-      - uses: 'actions/checkout@v3'
+      - uses: 'actions/checkout@v4'
         with:
           fetch-depth: 0
-      - uses: 'actions/setup-node@v3'
-        with:
-          cache: 'yarn'
-      - run: 'yarn install --immutable'
-      - run: 'yarn moon ci'
+      - uses: 'moonrepo/setup-toolchain@v0'
+      - run: 'moon ci'
 ```
 
 </TabItem>
@@ -94,7 +86,7 @@ steps:
   - label: 'CI'
     commands:
       - 'yarn install --immutable'
-      - 'yarn moon ci'
+      - 'moon ci'
 ```
 
 </TabItem>
@@ -116,7 +108,7 @@ jobs:
       - node/install-packages:
           check-cache: 'always'
           pkg-manager: 'yarn-berry'
-      - run: 'yarn moon ci'
+      - run: 'moon ci'
 workflows:
   pipeline:
     jobs:
@@ -137,14 +129,39 @@ script: 'moon ci'
 </TabItem>
 </Tabs>
 
+## Choosing targets<VersionLabel version="1.14.0" />
+
+By default `moon ci` will run _all_ tasks from _all_ projects that are affected by touched files and
+have the [`runInCI`](../config/project#runinci) task option enabled. This is a great catch-all
+solution, but may not vibe with your workflow or requirements.
+
+If you'd prefer more control, you can pass a list of targets to `moon ci`, instead of moon
+attempting to detect them. When providing targets, `moon ci` will still only run them if affected by
+touched files, but will still filter with the `runInCI` option.
+
+```shell
+# Run all builds
+$ moon ci :build
+
+# In another job, run tests
+$ moon ci :test :lint
+```
+
 ## Comparing revisions
 
-By default the command will compare the current HEAD against a base revision, which is typically the
-configured [`vcs.defaultBranch`](../config/workspace#defaultbranch) (master, main, trunk, etc). Both
-of these can be customized with the `--base` and `--head` options respectively.
+By default the command will attempt to detect the base and head revisions automatically based on the
+current CI provider (powered by the [`ci_env`](https://github.com/milesj/rust-cicd-env) Rust crate).
+If nothing was detected, this will fallback to the configured
+[`vcs.defaultBranch`](../config/workspace#defaultbranch) for the base revision, and `HEAD` for the
+head revision.
+
+These values can be customized with the `--base` and `--head` command line options, or the
+`MOON_BASE` and `MOON_HEAD` environment variables, which takes highest precedence.
 
 ```shell
 $ moon ci --base <BRANCH> --head <SHA>
+# Or
+$ MOON_BASE=<BRANCH> MOON_HEAD=<SHA> moon ci
 ```
 
 ## Parallelizing tasks
@@ -171,7 +188,7 @@ jobs:
         index: [0, 1]
     steps:
       # ...
-      - run: 'yarn moon ci --job ${{ matrix.index }} --jobTotal 2'
+      - run: 'moon ci --job ${{ matrix.index }} --jobTotal 2'
 ```
 
 - [Documentation](https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs)
@@ -186,7 +203,7 @@ steps:
     parallelism: 10
     commands:
       # ...
-      - 'yarn moon ci --job $$BUILDKITE_PARALLEL_JOB --jobTotal $$BUILDKITE_PARALLEL_JOB_COUNT'
+      - 'moon ci --job $$BUILDKITE_PARALLEL_JOB --jobTotal $$BUILDKITE_PARALLEL_JOB_COUNT'
 ```
 
 - [Documentation](https://buildkite.com/docs/tutorials/parallel-builds#parallel-jobs)
@@ -202,7 +219,7 @@ jobs:
     parallelism: 10
     steps:
       # ...
-      - run: 'yarn moon ci --job $CIRCLE_NODE_INDEX --jobTotal $CIRCLE_NODE_TOTAL'
+      - run: 'moon ci --job $CIRCLE_NODE_INDEX --jobTotal $CIRCLE_NODE_TOTAL'
 ```
 
 - [Documentation](https://circleci.com/docs/2.0/parallelism-faster-jobs/)
@@ -230,6 +247,30 @@ script: 'moon ci --job $TRAVIS_JOB_INDEX --jobTotal $TRAVIS_JOB_TOTAL'
 
 > Your CI environment may provide environment variables for these 2 values.
 
+## Caching artifacts
+
+When a CI pipeline reaches a certain scale, its run times increase, tasks are unnecessarily ran, and
+build artifacts are not shared. To combat this, we support [remote caching](./remote-cache), a
+mechanism where we store build artifacts in the cloud, and sync these artifacts to machines on
+demand.
+
+:::info
+
+Remote caching is powered by our [moonbase service](/moonbase). Start using today for free!
+
+:::
+
+### Manual persistence
+
+If you'd prefer to _not use_ remote caching at this time, you can cache artifacts yourself, by
+persisting the `.moon/cache/{hashes,outputs}` directories. All other files and folders in
+`.moon/cache` _should not_ be persisted, as they are not safe/portable across machines.
+
+However, because tasks can generate a different hash each run, you'll need to manually invalidate
+your cache. Blindly storing the `hashes` and `outputs` directories without a mechanism to invalidate
+will simply not work, as the contents will drastically change between CI runs. This is the primary
+reason why the remote caching service exists.
+
 ## Reporting run results
 
 If you're using GitHub Actions as your CI provider, we suggest using our
@@ -245,7 +286,7 @@ jobs:
     runs-on: 'ubuntu-latest'
     steps:
       # ...
-      - run: 'yarn moon ci'
+      - run: 'moon ci'
       - uses: 'moonrepo/run-report-action@v1'
         if: success() || failure()
         with:
@@ -255,3 +296,10 @@ jobs:
 The report looks something like the following:
 
 <Image src={require('../../static/img/github/run-report.png')} width="60%" />
+
+### Community offerings
+
+The following GitHub actions are provided by the community:
+
+- [`appthrust/moon-ci-retrospect`](https://github.com/appthrust/moon-ci-retrospect) - Displays the
+  results of a `moon ci` run in a more readable fashion.

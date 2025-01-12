@@ -1,6 +1,0 @@
-runner:
-  cacheLifetime: '3 hours'
-
-node:
-  version: '1.2.3'
-  addEnginesConstraint: true

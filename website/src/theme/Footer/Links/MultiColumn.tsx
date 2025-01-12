@@ -1,4 +1,3 @@
-import React from 'react';
 import { FooterLinkItem } from '@docusaurus/theme-common';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import type { Props } from '@theme/Footer/Links/MultiColumn';
@@ -17,10 +16,10 @@ function ColumnLinkItem({ item }: { item: FooterLinkItem }) {
 			{...(href
 				? {
 						href: prependBaseUrlToHref ? normalizedHref : href,
-				  }
+					}
 				: {
 						to: toUrl,
-				  })}
+					})}
 			{...props}
 		>
 			{label}

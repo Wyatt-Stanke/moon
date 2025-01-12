@@ -1,29 +1,25 @@
 ---
 source: crates/cli/tests/project_test.rs
-assertion_line: 55
-expression: get_assert_output(&assert)
+expression: assert.output()
 ---
-
  ADVANCED 
 
-ID: advanced
+Project: advanced
 Source: advanced
-Language: TypeScript
-Type: Application
-Name: Advanced
-Description: Advanced example.
-Owner: Batman
-Maintainers:
- - Bruce Wayne
-Channel: #batcave
+Toolchain: node
+Language: typescript
+Stack: frontend
+Type: application
+Tags: react
+
+ INHERITS FROM 
+
+  - .moon/tasks.yml
 
  FILE GROUPS 
 
 sources:
- - src/**/*
- - types/**/*
+  - advanced/src/**/*
+  - advanced/types/**/*
 tests:
- - tests/**/*
-
-
-
+  - advanced/tests/**/*

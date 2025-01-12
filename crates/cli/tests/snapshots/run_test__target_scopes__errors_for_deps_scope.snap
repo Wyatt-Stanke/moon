@@ -1,9 +1,10 @@
 ---
 source: crates/cli/tests/run_test.rs
-assertion_line: 219
-expression: get_assert_output(&assert)
+expression: assert.output()
 ---
+Error: target::run_context::no_deps_scope
 
- ERROR  Project dependencies scope (^:) is not supported in run contexts.
+  × Dependencies scope (^:) is not supported in run contexts.
+
 
 

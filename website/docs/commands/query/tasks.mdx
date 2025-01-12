@@ -1,0 +1,77 @@
+---
+title: query tasks
+sidebar_label: tasks
+toc_max_heading_level: 6
+---
+
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
+
+Use the `moon query tasks` sub-command to query task information for all projects in the project
+graph. The tasks list can be filtered by passing a [query statement](../../concepts/query-lang) as
+an argument, or by using [options](#options) arguments.
+
+```shell
+# Find all tasks grouped by project
+$ moon query tasks
+
+# Find all tasks from projects with an id that matches "react"
+$ moon query tasks --id react
+$ moon query tasks "task~react"
+```
+
+By default, this will output a list of projects, and tasks within the project being indented (with a
+tab) on their own line, in the format of `<id> | <command> | <type> | <toolchain> | <description>`.
+If no description is defined, "..." will be displayed instead.
+
+```
+web
+	lint | eslint | test | node | ...
+	test | jest | test | node | ...
+app
+	format | prettier | test | node | ...
+```
+
+The tasks can also be output in JSON ([which contains all data](/api/types/interface/Task)) by
+passing the `--json` flag. The output has the following structure:
+
+```ts
+{
+	tasks: Record<string, Record<string, Task>>,
+	options: QueryOptions,
+}
+```
+
+### Arguments
+
+- `[query]` - An optional [query statement](../../concepts/query-lang) to filter projects with. When
+  provided, all [filter options](#filters) are ignored. <VersionLabel version="1.4.0" />
+
+### Options
+
+- `--json` - Display the projects in JSON format.
+
+#### Affected
+
+- `--affected` - Filter tasks that have been affected by touched files.
+- `--downstream` - Include downstream dependents of queried tasks. Supports "none" (default),
+  "direct", "deep".
+  <VersionLabel version="1.30.0" />
+- `--upstream` - Include upstream dependencies of queried tasks. Supports "none", "direct", "deep"
+  (default).
+  <VersionLabel version="1.30.0" />
+
+#### Filters<VersionLabel version="1.30.0" />
+
+All option values are case-insensitive regex patterns.
+
+- `--command <regex>` - Filter tasks that match this command.
+- `--id <regex>` - Filter tasks that match this ID.
+- `--project <regex>` - Filter tasks that belong to this project.
+- `--script <regex>` - Filter tasks that match this script.
+- `--toolchain <regex>` - Filter tasks of this toolchain. <VersionLabel version="1.31.0" />
+- `--type <regex>` - Filter tasks of this type.
+
+### Configuration
+
+- [`projects`](../../config/workspace#projects) in `.moon/workspace.yml`
+- [`tasks`](../../config/project#tasks) in `moon.yml`

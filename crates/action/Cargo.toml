@@ -1,9 +1,17 @@
 [package]
 name = "moon_action"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+publish = false
 
 [dependencies]
-moon_utils = { path = "../utils" }
-clap = { version = "4.0.10", features = ["derive"] }
-serde = { workspace = true }
+moon_common = { path = "../common" }
+moon_target = { path = "../target" }
+moon_time = { path = "../time" }
+moon_toolchain = { path = "../toolchain" }
+miette = { workspace = true }
+rustc-hash = { workspace = true }
+serde = { workspace = true, features = ["rc"] }
+
+[lints]
+workspace = true

@@ -1,5 +1,8 @@
 /target
+/wasm/*/target
 node_modules/
+.nx
+bazel-remote
 
 # Yarn
 .yarn/*
@@ -8,6 +11,7 @@ node_modules/
 !.yarn/plugins
 !.yarn/sdks
 !.yarn/versions
+!.yarn/declined.txt
 .pnp.*
 
 # Build folders
@@ -19,14 +23,16 @@ esm/
 lib/
 mjs/
 umd/
+dist/
 
 # Artifacts
 .eslintcache
 *.map
 *.min.js
 *.tsbuildinfo
+tailwind.config.d.ts
 
-# Moon
+# moon
 .moon/cache
 .moon/docker
 packages/*/moon
@@ -34,11 +40,16 @@ packages/*/moon.exe
 /moon
 /moon.exe
 
-# Moon tests/fixtures
+# moon tests/fixtures
 tests/fixtures/*/.moon/cache
 tests/fixtures/*/.yarn
+tests/fixtures/rust/*/target/
+tests/repros/*/.moon/cache
 
 # Debug and profiling cruft
 *.profraw
 *profdata
 dockerManifest.json
+
+# vscode
+.vscode/settings.json

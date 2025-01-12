@@ -6,15 +6,12 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     name: Publish npm packages
     runs-on: ubuntu-latest
-    env:
-      NPM_CHANNEL: latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           cache: yarn
           check-latest: true
-          node-version: 16
       - name: Install dependencies
         run: yarn install --immutable
       - name: Build packages
@@ -24,4 +21,5 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CHANNEL: latest
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

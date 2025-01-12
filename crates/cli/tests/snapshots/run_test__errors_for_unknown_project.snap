@@ -1,9 +1,10 @@
 ---
 source: crates/cli/tests/run_test.rs
-assertion_line: 39
-expression: get_assert_output(&assert)
+expression: assert.output()
 ---
+Error: project_graph::unknown_id
 
- ERROR  No project has been configured with the ID unknown.
+  × No project has been configured with the identifier or alias unknown.
+
 
 

@@ -1,0 +1,20 @@
+[package]
+name = "test_plugin"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ['cdylib']
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = true
+opt-level = "s"
+panic = "abort"
+
+[dependencies]
+moon_common = { path = "../../crates/common" }
+moon_config = { path = "../../crates/config" }
+moon_target = { path = "../../crates/target" }

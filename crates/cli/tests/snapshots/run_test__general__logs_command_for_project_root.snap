@@ -1,11 +1,12 @@
 ---
 source: crates/cli/tests/run_test.rs
-assertion_line: 80
+assertion_line: 85
 expression: get_assert_output(&assert)
 ---
 ▪▪▪▪ base:runFromProject
-echo 'in project' (in ./base)
-in project
+echo 'from project' (in ./base)
+from project
+▪▪▪▪ base:runFromProject (100ms)
 
 Tasks: 1 completed
  Time: 100ms

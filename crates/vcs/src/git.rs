@@ -1,228 +1,360 @@
-use crate::errors::VcsError;
-use crate::vcs::{TouchedFiles, Vcs, VcsResult};
+use crate::git_submodule::*;
+use crate::git_worktree::*;
+use crate::process_cache::ProcessCache;
+use crate::touched_files::TouchedFiles;
+use crate::vcs::Vcs;
 use async_trait::async_trait;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
-use moon_utils::process::{output_to_string, output_to_trimmed_string, Command};
-use moon_utils::{fs, string_vec};
+use miette::Diagnostic;
+use moon_common::path::{RelativePathBuf, WorkspaceRelativePathBuf};
+use moon_common::{is_test_env, Style, Stylize};
+use once_cell::sync::Lazy;
 use regex::Regex;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use rustc_hash::FxHashSet;
+use semver::Version;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::{cmp, env};
+use thiserror::Error;
+use tracing::{debug, instrument};
 
+pub static STATUS_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(M|T|A|D|R|C|U|\?|!| )(M|T|A|D|R|C|U|\?|!| ) ").unwrap());
+
+pub static DIFF_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(A|D|M|T|U|X)$").unwrap());
+
+pub static DIFF_SCORE_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(C|M|R)(\d{3})$").unwrap());
+
+pub static VERSION_CLEAN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\.(windows|win|msysgit|msys|vfs)(\.\d+){1,2}").unwrap());
+
+pub fn clean_git_version(version: String) -> String {
+    let version = if let Some(index) = version.find('(') {
+        &version[0..index]
+    } else {
+        &version
+    };
+
+    let version = version
+        .to_lowercase()
+        .replace("git", "")
+        .replace("version", "")
+        .replace("for windows", "")
+        .replace("(32-bit)", "")
+        .replace("(64-bit)", "")
+        .replace("(32bit)", "")
+        .replace("(64bit)", "");
+
+    let version = VERSION_CLEAN.replace(&version, "");
+
+    // Some older versions have more than 3 numbers,
+    // so ignore any non major, minor, or patches
+    let mut parts = version.trim().split('.');
+
+    format!(
+        "{}.{}.{}",
+        parts.next().unwrap_or("0"),
+        parts.next().unwrap_or("0"),
+        parts.next().unwrap_or("0")
+    )
+}
+
+#[derive(Error, Debug, Diagnostic)]
+pub enum GitError {
+    #[diagnostic(code(git::invalid_version))]
+    #[error("Invalid or unsupported git version.")]
+    InvalidVersion {
+        #[source]
+        error: Box<semver::Error>,
+    },
+
+    #[diagnostic(code(git::ignore::load_invalid))]
+    #[error("Failed to load and parse {}.", ".gitignore".style(Style::File))]
+    GitignoreLoadFailed {
+        #[source]
+        error: Box<ignore::Error>,
+    },
+
+    #[diagnostic(code(git::repository::extract_slug))]
+    #[error("Failed to extract a repository slug from git remote candidates.")]
+    ExtractRepoSlugFailed,
+
+    #[diagnostic(code(git::worktree::parse_failed))]
+    #[error("Failed to parse .git worktree file.")]
+    ParseWorktreeFailed,
+
+    #[diagnostic(code(git::worktree::load_failed))]
+    #[error("Failed to load .git worktree file {}.", .path.style(Style::Path))]
+    LoadWorktreeFailed {
+        path: PathBuf,
+        #[source]
+        error: Box<std::io::Error>,
+    },
+}
+
+#[derive(Debug)]
 pub struct Git {
-    cache: Arc<RwLock<HashMap<String, String>>>,
-    default_branch: String,
+    /// Ignore rules derived from a root `.gitignore` file.
     ignore: Option<Gitignore>,
-    root: PathBuf,
+
+    /// Default git branch name.
+    pub default_branch: Arc<String>,
+
+    /// Root of the `.git` directory.
+    pub git_root: PathBuf,
+
+    /// Run and cache `git` commands.
+    pub process: ProcessCache,
+
+    /// List of remotes to use as merge candidates.
+    pub remote_candidates: Vec<String>,
+
+    /// Root of the repository that contains `.git`.
+    pub repository_root: PathBuf,
+
+    /// Path between the git and workspace root.
+    pub root_prefix: Option<RelativePathBuf>,
+
+    /// If in a git worktree, information about it's location (the `.git` file).
+    pub worktree: Option<GitWorktree>,
+
+    /// Map of submodules within the repository.
+    /// The root is also considered a module to keep things easy.
+    modules: BTreeMap<String, GitModule>,
 }
 
 impl Git {
-    pub fn new(default_branch: &str, working_dir: &Path) -> VcsResult<Self> {
-        let root = match fs::find_upwards(".git", working_dir) {
-            Some(dir) => dir.parent().unwrap().to_path_buf(),
-            None => working_dir.to_path_buf(),
-        };
+    pub fn load<R: AsRef<Path>, B: AsRef<str>>(
+        workspace_root: R,
+        default_branch: B,
+        remote_candidates: &[String],
+    ) -> miette::Result<Git> {
+        debug!("Using git as a version control system");
 
-        let mut ignore: Option<Gitignore> = None;
-        let ignore_path = root.join(".gitignore");
+        let workspace_root = workspace_root.as_ref();
 
-        if ignore_path.exists() {
-            let mut builder = GitignoreBuilder::new(&root);
+        debug!(
+            starting_dir = ?workspace_root,
+            "Attempting to find a .git directory or file"
+        );
 
-            if let Some(error) = builder.add(ignore_path) {
-                return Err(VcsError::Ignore(error));
+        // Find the .git dir
+        let mut current_dir = workspace_root;
+        let mut worktree = None;
+        let repository_root;
+        let git_root;
+
+        loop {
+            let git_check = current_dir.join(".git");
+
+            if git_check.exists() {
+                if git_check.is_file() {
+                    debug!(
+                        git = ?git_check,
+                        "Found a .git file (submodule or worktree root)"
+                    );
+
+                    worktree = Some(GitWorktree {
+                        checkout_dir: current_dir.to_path_buf(),
+                        git_dir: extract_gitdir_from_worktree(&git_check)?,
+                    });
+
+                    // Don't break and continue searching for the root
+                } else {
+                    debug!(
+                        git = ?git_check,
+                        "Found a .git directory (repository root)"
+                    );
+
+                    git_root = git_check.to_path_buf();
+                    repository_root = current_dir.to_path_buf();
+                    break;
+                }
             }
 
-            ignore = Some(builder.build().map_err(VcsError::Ignore)?);
+            match current_dir.parent() {
+                Some(parent) => current_dir = parent,
+                None => {
+                    debug!("Unable to find .git, falling back to workspace root");
+
+                    git_root = workspace_root.join(".git");
+                    repository_root = workspace_root.to_path_buf();
+                    break;
+                }
+            };
         }
 
-        Ok(Git {
-            cache: Arc::new(RwLock::new(HashMap::new())),
-            default_branch: String::from(default_branch),
+        // Load .gitignore
+        let ignore_path = repository_root.join(".gitignore");
+        let mut ignore: Option<Gitignore> = None;
+
+        if ignore_path.exists() {
+            debug!(
+                ignore_file = ?ignore_path,
+                "Loading ignore rules from .gitignore",
+            );
+
+            let mut builder = GitignoreBuilder::new(&repository_root);
+
+            if let Some(error) = builder.add(ignore_path) {
+                return Err(GitError::GitignoreLoadFailed {
+                    error: Box::new(error),
+                }
+                .into());
+            }
+
+            ignore = Some(
+                builder
+                    .build()
+                    .map_err(|error| GitError::GitignoreLoadFailed {
+                        error: Box::new(error),
+                    })?,
+            );
+        }
+
+        // Load .gitmodules
+        let modules_path = repository_root.join(".gitmodules");
+        let mut modules = BTreeMap::from_iter([(
+            "(root)".into(),
+            GitModule {
+                checkout_dir: repository_root.clone(),
+                git_dir: git_root.clone(),
+                ..Default::default()
+            },
+        )]);
+
+        if modules_path.exists() {
+            debug!(
+                modules_file = ?modules_path,
+                "Loading submodules from .gitmodules",
+            );
+
+            modules.extend(parse_gitmodules_file(&modules_path, &repository_root)?);
+        }
+
+        let git = Git {
+            default_branch: Arc::new(default_branch.as_ref().to_owned()),
             ignore,
-            root,
-        })
+            remote_candidates: remote_candidates.to_owned(),
+            root_prefix: if repository_root == workspace_root {
+                None
+            } else if let Some(tree) = &worktree {
+                if tree.checkout_dir == workspace_root {
+                    None
+                } else {
+                    RelativePathBuf::from_path(
+                        workspace_root.strip_prefix(&tree.checkout_dir).unwrap(),
+                    )
+                    .ok()
+                }
+            } else {
+                RelativePathBuf::from_path(workspace_root.strip_prefix(&repository_root).unwrap())
+                    .ok()
+            },
+            repository_root,
+            process: ProcessCache::new("git", workspace_root),
+            git_root,
+            worktree,
+            modules,
+        };
+
+        Ok(git)
     }
 
-    async fn get_merge_base(&self, base: &str, head: &str) -> VcsResult<String> {
-        let mut args = string_vec!["merge-base", head];
+    async fn get_merge_base(&self, base: &str, head: &str) -> miette::Result<Option<Arc<String>>> {
+        let mut args = vec!["merge-base", head];
+        let mut candidates = vec![base.to_owned()];
 
-        // To start, we need to find a working base origin
-        for candidate in [
-            base.to_owned(),
-            format!("origin/{}", base),
-            format!("upstream/{}", base),
-        ] {
+        for remote in &self.remote_candidates {
+            candidates.push(format!("{remote}/{base}"));
+        }
+
+        // To start, we need to find a working base
+        for candidate in &candidates {
             if self
-                .run_command(
-                    &mut self.create_command(vec!["merge-base", &candidate, head]),
-                    true,
-                )
+                .process
+                .run(["merge-base", candidate, head], true)
                 .await
                 .is_ok()
             {
-                args.push(candidate.clone());
+                args.push(candidate);
             }
         }
 
-        // Then we need to run it again and extract the base hash using the found origins
+        // Then we need to run it again and extract the base hash.
         // This is necessary to support comparisons between forks!
-        if let Ok(hash) = self
-            .run_command(
-                &mut self.create_command(args.iter().map(|a| a.as_str()).collect()),
-                true,
-            )
-            .await
-        {
-            return Ok(hash);
+        if let Ok(hash) = self.process.run(args, true).await {
+            return Ok(Some(hash));
         }
 
-        Ok(base.to_owned())
+        Ok(None)
     }
 
-    fn is_file_ignored(&self, file: &str) -> bool {
-        if self.ignore.is_some() {
-            self.ignore
-                .as_ref()
-                .unwrap()
-                .matched(file, false)
-                .is_ignore()
-        } else {
-            false
-        }
-    }
-
-    async fn run_command(&self, command: &mut Command, trim: bool) -> VcsResult<String> {
-        let (cache_key, _) = command.get_command_line();
-
-        // Read first before locking with a write
-        {
-            let cache = self.cache.read().await;
-
-            if cache.contains_key(&cache_key) {
-                return Ok(cache.get(&cache_key).unwrap().clone());
+    pub async fn get_remote_default_branch(&self) -> miette::Result<Arc<String>> {
+        let extract_branch = |result: Arc<String>| -> Option<Arc<String>> {
+            if let Some(branch) = result.strip_prefix("origin/") {
+                return Some(Arc::new(branch.to_owned()));
+            } else if let Some(branch) = result.strip_prefix("upstream/") {
+                return Some(Arc::new(branch.to_owned()));
             }
-        }
 
-        // Otherwise lock and calculate a new value to write
-        let mut cache = self.cache.write().await;
-        let output = command.exec_capture_output().await?;
-
-        let value = if trim {
-            output_to_trimmed_string(&output.stdout)
-        } else {
-            output_to_string(&output.stdout)
+            None
         };
 
-        cache.insert(cache_key.to_owned(), value.clone());
-
-        Ok(value)
-    }
-}
-
-#[async_trait]
-impl Vcs for Git {
-    fn create_command(&self, args: Vec<&str>) -> Command {
-        let mut cmd = Command::new("git");
-        cmd.args(args).cwd(&self.root);
-        cmd
-    }
-
-    async fn get_local_branch(&self) -> VcsResult<String> {
-        self.run_command(
-            &mut self.create_command(vec!["branch", "--show-current"]),
-            true,
-        )
-        .await
-    }
-
-    async fn get_local_branch_revision(&self) -> VcsResult<String> {
-        self.run_command(&mut self.create_command(vec!["rev-parse", "HEAD"]), true)
+        if let Ok(result) = self
+            .process
+            .run(["rev-parse", "--abbrev-ref", "origin/HEAD"], true)
             .await
-    }
-
-    fn get_default_branch(&self) -> &str {
-        &self.default_branch
-    }
-
-    async fn get_default_branch_revision(&self) -> VcsResult<String> {
-        self.run_command(
-            &mut self.create_command(vec!["rev-parse", &self.default_branch]),
-            true,
-        )
-        .await
-    }
-
-    async fn get_file_hashes(&self, files: &[String]) -> VcsResult<BTreeMap<String, String>> {
-        let mut objects = vec![];
-
-        for file in files {
-            if !self.is_file_ignored(file) {
-                objects.push(file.clone());
+        {
+            if let Some(branch) = extract_branch(result) {
+                return Ok(branch);
             }
-        }
+        };
 
-        let output = self
-            .create_command(vec!["hash-object", "--stdin-paths"])
-            .input(objects.join("\n").as_bytes())
-            .exec_capture_output()
-            .await?;
-        let output = output_to_trimmed_string(&output.stdout);
-
-        let mut map = BTreeMap::new();
-
-        for (index, hash) in output.split('\n').enumerate() {
-            if !hash.is_empty() {
-                map.insert(objects[index].clone(), hash.to_owned());
-            }
-        }
-
-        Ok(map)
-    }
-
-    async fn get_file_tree_hashes(&self, dir: &str) -> VcsResult<BTreeMap<String, String>> {
-        let output = self
-            .run_command(
-                &mut self.create_command(vec!["ls-tree", "HEAD", "-r", dir]),
+        if let Ok(result) = self
+            .process
+            .run(
+                ["symbolic-ref", "refs/remotes/origin/HEAD", "--short"],
                 true,
             )
-            .await?;
-
-        let mut map = BTreeMap::new();
-
-        if output.is_empty() {
-            return Ok(map);
-        }
-
-        for line in output.split('\n') {
-            // <mode> <type> <hash>\t<file>
-            let parts = line.split(' ');
-            // <hash>\t<file>
-            let mut last_parts = parts.last().unwrap_or_default().split('\t');
-            let hash = last_parts.next().unwrap_or_default();
-            let file = last_parts.next().unwrap_or_default();
-
-            if !hash.is_empty() && !file.is_empty() && !self.is_file_ignored(file) {
-                map.insert(file.to_owned(), hash.to_owned());
+            .await
+        {
+            if let Some(branch) = extract_branch(result) {
+                return Ok(branch);
             }
-        }
+        };
 
-        Ok(map)
+        Ok(self.default_branch.clone())
     }
 
-    // https://git-scm.com/docs/git-status#_short_format
-    async fn get_touched_files(&self) -> VcsResult<TouchedFiles> {
+    #[instrument(skip(self))]
+    async fn exec_diff(
+        &self,
+        module: &GitModule,
+        base_revision: &str,
+        revision: &str,
+    ) -> miette::Result<TouchedFiles> {
+        let base = self.get_merge_base(base_revision, revision).await?;
+
         let output = self
+            .process
             .run_command(
-                &mut self.create_command(vec![
-                    "status",
-                    "--porcelain",
-                    "--untracked-files",
-                    // We use this option so that file names with special characters
-                    // are displayed as-is and are not quoted/escaped
-                    "-z",
-                ]),
+                self.process.create_command_in_dir(
+                    [
+                        "--no-pager",
+                        "diff",
+                        "--name-status",
+                        "--no-color",
+                        "--relative",
+                        "--ignore-submodules",
+                        // We use this option so that file names with special characters
+                        // are displayed as-is and are not quoted/escaped
+                        "-z",
+                        base.as_ref().map(|b| b.as_str()).unwrap_or(base_revision),
+                    ],
+                    module.path.as_str(),
+                ),
                 false,
             )
             .await?;
@@ -231,14 +363,143 @@ impl Vcs for Git {
             return Ok(TouchedFiles::default());
         }
 
-        let mut added = HashSet::new();
-        let mut deleted = HashSet::new();
-        let mut modified = HashSet::new();
-        let mut untracked = HashSet::new();
-        let mut staged = HashSet::new();
-        let mut unstaged = HashSet::new();
-        let mut all = HashSet::new();
-        let xy_regex = Regex::new(r"^(M|T|A|D|R|C|U|\?|!| )(M|T|A|D|R|C|U|\?|!| ) ").unwrap();
+        let mut added = FxHashSet::default();
+        let mut deleted = FxHashSet::default();
+        let mut modified = FxHashSet::default();
+        let mut staged = FxHashSet::default();
+        let mut unstaged = FxHashSet::default();
+        let mut last_status = "A";
+
+        // Lines AND statuses are terminated by a NUL byte
+        //  X\0file\0
+        //  X000\0file\0
+        //  X000\0file\0renamed_file\0
+        for line in output.split('\0') {
+            if line.is_empty() {
+                continue;
+            }
+
+            // X\0
+            // X000\0
+            if DIFF_SCORE_PATTERN.is_match(line) || DIFF_PATTERN.is_match(line) {
+                last_status = &line[0..1];
+                continue;
+            }
+
+            let x = last_status.chars().next().unwrap_or_default();
+            let file = module.path.join(self.to_workspace_relative_path(line));
+
+            match x {
+                'A' | 'C' => {
+                    added.insert(file.clone());
+                    staged.insert(file.clone());
+                }
+                'D' => {
+                    deleted.insert(file.clone());
+                    staged.insert(file.clone());
+                }
+                'M' | 'R' | 'T' => {
+                    modified.insert(file.clone());
+                    staged.insert(file.clone());
+                }
+                'U' => {
+                    unstaged.insert(file.clone());
+                }
+                _ => {}
+            }
+        }
+
+        Ok(TouchedFiles {
+            added,
+            deleted,
+            modified,
+            staged,
+            unstaged,
+            untracked: FxHashSet::default(),
+        })
+    }
+
+    #[instrument(skip(self))]
+    async fn exec_ls_files(
+        &self,
+        module: &GitModule,
+        dir: &str,
+    ) -> miette::Result<Vec<WorkspaceRelativePathBuf>> {
+        let mut args = vec![
+            "ls-files",
+            "--full-name",
+            "--cached",
+            "--modified",
+            "--others", // Includes untracked
+            "--exclude-standard",
+        ];
+
+        if self.is_version_supported(">=2.31.0").await? {
+            args.push("--deduplicate");
+        }
+
+        if !dir.is_empty() {
+            args.push(dir);
+        }
+
+        let output = self
+            .process
+            .run_command(
+                self.process
+                    .create_command_in_dir(args, module.path.as_str()),
+                false,
+            )
+            .await?;
+
+        let paths = output
+            .split('\n')
+            .filter_map(|file| {
+                let path = module.path.join(self.to_workspace_relative_path(file));
+
+                // Do not include directories
+                if self.process.root.join(path.as_str()).is_file() {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        Ok(paths)
+    }
+
+    // https://git-scm.com/docs/git-status#_short_format
+    #[instrument(skip(self))]
+    async fn exec_status(&self, module: &GitModule) -> miette::Result<TouchedFiles> {
+        let output = self
+            .process
+            .run_command(
+                self.process.create_command_in_dir(
+                    [
+                        "status",
+                        "--porcelain",
+                        "--untracked-files",
+                        "--ignore-submodules",
+                        // We use this option so that file names with special characters
+                        // are displayed as-is and are not quoted/escaped
+                        "-z",
+                    ],
+                    module.path.as_str(),
+                ),
+                false,
+            )
+            .await?;
+
+        if output.is_empty() {
+            return Ok(TouchedFiles::default());
+        }
+
+        let mut added = FxHashSet::default();
+        let mut deleted = FxHashSet::default();
+        let mut modified = FxHashSet::default();
+        let mut untracked = FxHashSet::default();
+        let mut staged = FxHashSet::default();
+        let mut unstaged = FxHashSet::default();
 
         // Lines are terminated by a NUL byte:
         //  XY file\0
@@ -249,7 +510,7 @@ impl Vcs for Git {
             }
 
             // orig_file\0
-            if !xy_regex.is_match(line) {
+            if !STATUS_PATTERN.is_match(line) {
                 continue;
             }
 
@@ -257,7 +518,9 @@ impl Vcs for Git {
             let mut chars = line.chars();
             let x = chars.next().unwrap_or_default();
             let y = chars.next().unwrap_or_default();
-            let file = String::from(&line[3..]);
+            let file = module
+                .path
+                .join(self.to_workspace_relative_path(&line[3..]));
 
             match x {
                 'A' | 'C' => {
@@ -293,13 +556,10 @@ impl Vcs for Git {
                 }
                 _ => {}
             }
-
-            all.insert(file.clone());
         }
 
         Ok(TouchedFiles {
             added,
-            all,
             deleted,
             modified,
             staged,
@@ -308,185 +568,321 @@ impl Vcs for Git {
         })
     }
 
+    fn to_workspace_relative_path(&self, value: &str) -> WorkspaceRelativePathBuf {
+        let file = WorkspaceRelativePathBuf::from(value);
+
+        // Convert the prefixed path back to a workspace relative one...
+        if let Some(prefix) = &self.root_prefix {
+            if let Ok(rel_file) = file.strip_prefix(prefix) {
+                return rel_file.to_owned();
+            }
+        }
+
+        file
+    }
+}
+
+#[async_trait]
+impl Vcs for Git {
+    async fn get_local_branch(&self) -> miette::Result<Arc<String>> {
+        if self.is_version_supported(">=2.22.0").await? {
+            return self.process.run(["branch", "--show-current"], true).await;
+        }
+
+        self.process
+            .run(["rev-parse", "--abbrev-ref", "HEAD"], true)
+            .await
+    }
+
+    async fn get_local_branch_revision(&self) -> miette::Result<Arc<String>> {
+        self.process.run(["rev-parse", "HEAD"], true).await
+    }
+
+    async fn get_default_branch(&self) -> miette::Result<Arc<String>> {
+        Ok(self.default_branch.clone())
+    }
+
+    async fn get_default_branch_revision(&self) -> miette::Result<Arc<String>> {
+        self.process
+            .run(["rev-parse", &self.default_branch], true)
+            .await
+    }
+
+    #[instrument(skip_all)]
+    async fn get_file_hashes(
+        &self,
+        files: &[String], // Workspace relative
+        allow_ignored: bool,
+        batch_size: u16,
+    ) -> miette::Result<BTreeMap<WorkspaceRelativePathBuf, String>> {
+        let mut objects = vec![];
+        let mut map = BTreeMap::new();
+
+        for file in files {
+            let abs_file = self.process.root.join(file);
+
+            // File must exist or git fails
+            if abs_file.exists()
+                && abs_file.is_file()
+                && (allow_ignored || !self.is_ignored(&abs_file))
+            {
+                // When moon is setup in a sub-folder and not the git root,
+                // we need to prefix the paths because `--stdin-paths` assumes
+                // the paths are from the git root and don't work correctly...
+                if let Some(prefix) = &self.root_prefix {
+                    objects.push(prefix.join(file).as_str().to_owned());
+                } else {
+                    objects.push(file.to_owned());
+                }
+            }
+        }
+
+        if objects.is_empty() {
+            return Ok(map);
+        }
+
+        // Sort for deterministic caching within the vcs layer
+        objects.sort();
+
+        // Chunk into slices to avoid passing too many files
+        let mut index = 0;
+        let end_index = objects.len();
+
+        while index < end_index {
+            let next_index = cmp::min(index + (batch_size as usize), end_index);
+            let slice = objects[index..next_index].to_vec();
+
+            let mut command = self
+                .process
+                .create_command(["hash-object", "--stdin-paths"]);
+            command.input([slice.join("\n")]);
+
+            let output = if is_test_env() {
+                self.process
+                    .run_command_without_cache(command, true)
+                    .await?
+            } else {
+                self.process.run_command(command, true).await?
+            };
+
+            for (i, hash) in output.split('\n').enumerate() {
+                if !hash.is_empty() {
+                    map.insert(self.to_workspace_relative_path(&slice[i]), hash.to_owned());
+                }
+            }
+
+            index = next_index;
+        }
+
+        Ok(map)
+    }
+
+    #[instrument(skip(self))]
+    async fn get_file_tree(&self, dir: &str) -> miette::Result<Vec<WorkspaceRelativePathBuf>> {
+        // Check to see if the requested dir is within a submodule
+        if let Some(module) = self
+            .modules
+            .values()
+            .find(|module| !module.is_root() && dir.starts_with(module.path.as_str()))
+        {
+            return self
+                .exec_ls_files(
+                    module,
+                    dir.strip_prefix(module.path.as_str()).unwrap_or_default(),
+                )
+                .await;
+        }
+
+        // If not, then check against the root
+        if let Some(module) = self.modules.values().find(|module| module.is_root()) {
+            return self.exec_ls_files(module, dir).await;
+        }
+
+        Ok(vec![])
+    }
+
+    async fn get_hooks_dir(&self) -> miette::Result<PathBuf> {
+        // Only use the hooks path if it's within the current repository
+        let is_in_repo =
+            |dir: &Path| dir.is_absolute() && dir.starts_with(self.git_root.parent().unwrap());
+
+        if let Some(tree) = &self.worktree {
+            return Ok(tree.git_dir.join("hooks"));
+        }
+
+        if let Ok(output) = self
+            .process
+            .run(["config", "--get", "core.hooksPath"], true)
+            .await
+        {
+            let dir = PathBuf::from(output.as_str());
+
+            if is_in_repo(&dir) {
+                return Ok(dir);
+            }
+        }
+
+        if let Ok(dir) = env::var("GIT_DIR") {
+            let dir = PathBuf::from(dir).join("hooks");
+
+            if is_in_repo(&dir) {
+                return Ok(dir);
+            }
+        }
+
+        Ok(self.git_root.join("hooks"))
+    }
+
+    async fn get_repository_root(&self) -> miette::Result<PathBuf> {
+        Ok(self
+            .worktree
+            .as_ref()
+            .map(|tree| tree.checkout_dir.as_ref())
+            .unwrap_or_else(|| self.git_root.parent().unwrap())
+            .to_path_buf())
+    }
+
+    async fn get_repository_slug(&self) -> miette::Result<Arc<String>> {
+        use git_url_parse::GitUrl;
+
+        for candidate in &self.remote_candidates {
+            if let Ok(output) = self
+                .process
+                .run_with_formatter(["remote", "get-url", candidate], true, |out| {
+                    if let Ok(url) = GitUrl::parse(&out) {
+                        url.fullname
+                    } else {
+                        out
+                    }
+                })
+                .await
+            {
+                return Ok(output);
+            }
+        }
+
+        Err(GitError::ExtractRepoSlugFailed.into())
+    }
+
+    async fn get_touched_files(&self) -> miette::Result<TouchedFiles> {
+        let mut touched_files = TouchedFiles::default();
+
+        for result in futures::future::try_join_all(
+            self.modules.values().map(|module| self.exec_status(module)),
+        )
+        .await?
+        {
+            touched_files.merge(result);
+        }
+
+        Ok(touched_files)
+    }
+
     async fn get_touched_files_against_previous_revision(
         &self,
         revision: &str,
-    ) -> VcsResult<TouchedFiles> {
-        let rev = if self.is_default_branch(revision) {
+    ) -> miette::Result<TouchedFiles> {
+        let revision = if self.is_default_branch(revision) {
             "HEAD"
         } else {
             revision
         };
 
-        Ok(self
-            .get_touched_files_between_revisions(&format!("{}~1", rev), rev)
-            .await?)
+        // If there's only 1 commit on the revision,
+        // then the diff command will error. So let's
+        // extract the commit count and handle accordingly.
+        let output = self
+            .process
+            .run(["rev-list", "--count", revision], true)
+            .await?;
+
+        let prev_revision = if output.as_str() == "0" || output.is_empty() {
+            revision.to_owned()
+        } else {
+            format!("{revision}~1")
+        };
+
+        self.get_touched_files_between_revisions(&prev_revision, revision)
+            .await
     }
 
     async fn get_touched_files_between_revisions(
         &self,
         base_revision: &str,
         revision: &str,
-    ) -> VcsResult<TouchedFiles> {
-        let base = self.get_merge_base(base_revision, revision).await?;
+    ) -> miette::Result<TouchedFiles> {
+        let mut touched_files = TouchedFiles::default();
 
-        let output = self
-            .run_command(
-                &mut self.create_command(vec![
-                    "--no-pager",
-                    "diff",
-                    "--name-status",
-                    "--no-color",
-                    "--relative",
-                    // We use this option so that file names with special characters
-                    // are displayed as-is and are not quoted/escaped
-                    "-z",
-                    &base,
-                ]),
-                false,
-            )
+        // TODO: Revisit submodules
+        // https://github.com/moonrepo/moon/issues/1734
+        for result in futures::future::try_join_all(self.modules.values().filter_map(|module| {
+            if module.is_root() {
+                Some(self.exec_diff(module, base_revision, revision))
+            } else {
+                None
+            }
+        }))
+        .await?
+        {
+            touched_files.merge(result);
+        }
+
+        Ok(touched_files)
+    }
+
+    async fn get_version(&self) -> miette::Result<Version> {
+        let version = self
+            .process
+            .run_with_formatter(["--version"], true, clean_git_version)
             .await?;
 
-        if output.is_empty() {
-            return Ok(TouchedFiles::default());
-        }
-
-        let mut added = HashSet::new();
-        let mut deleted = HashSet::new();
-        let mut modified = HashSet::new();
-        let mut staged = HashSet::new();
-        let mut all = HashSet::new();
-        let x_with_score_regex = Regex::new(r"^(C|M|R)(\d{3})$").unwrap();
-        let x_regex = Regex::new(r"^(A|D|M|T|U|X)$").unwrap();
-        let mut last_status = "A";
-
-        // Lines AND statuses are terminated by a NUL byte
-        //  X\0file\0
-        //  X000\0file\0
-        //  X000\0file\0renamed_file\0
-        for line in output.split('\0') {
-            if line.is_empty() {
-                continue;
-            }
-
-            // X\0
-            // X000\0
-            if x_with_score_regex.is_match(line) || x_regex.is_match(line) {
-                last_status = &line[0..1];
-                continue;
-            }
-
-            let x = last_status.chars().next().unwrap_or_default();
-            let file = line.to_owned();
-
-            match x {
-                'A' | 'C' => {
-                    added.insert(file.clone());
-                    staged.insert(file.clone());
-                }
-                'D' => {
-                    deleted.insert(file.clone());
-                    staged.insert(file.clone());
-                }
-                'M' | 'R' => {
-                    modified.insert(file.clone());
-                    staged.insert(file.clone());
-                }
-                _ => {}
-            }
-
-            all.insert(file.clone());
-        }
-
-        Ok(TouchedFiles {
-            added,
-            all,
-            deleted,
-            modified,
-            staged,
-            unstaged: HashSet::new(),
-            untracked: HashSet::new(),
-        })
+        Ok(
+            Version::parse(&version).map_err(|error| GitError::InvalidVersion {
+                error: Box::new(error),
+            })?,
+        )
     }
 
     fn is_default_branch(&self, branch: &str) -> bool {
-        if self.default_branch == branch {
+        let default_branch = &self.default_branch;
+
+        if default_branch.as_str() == branch {
             return true;
         }
 
-        if self.default_branch.contains('/') {
-            return self.default_branch.ends_with(&format!("/{}", branch));
+        if default_branch.contains('/') {
+            return default_branch.ends_with(&format!("/{branch}"));
         }
 
         false
     }
 
     fn is_enabled(&self) -> bool {
-        self.root.join(".git").exists()
+        self.git_root.exists()
     }
-}
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use moon_utils::string_vec;
-    use moon_utils::test::create_sandbox_with_git;
-
-    mod get_file_hashes {
-        use super::*;
-
-        #[tokio::test]
-        async fn filters_ignored_files() {
-            let fixture = create_sandbox_with_git("ignore");
-            let git = Git::new("master", fixture.path()).unwrap();
-
-            assert_eq!(
-                git.get_file_hashes(&string_vec!["foo", "bar", "dir/baz", "dir/qux"])
-                    .await
-                    .unwrap(),
-                BTreeMap::from([
-                    (
-                        "dir/qux".to_owned(),
-                        "100b0dec8c53a40e4de7714b2c612dad5fad9985".to_owned()
-                    ),
-                    (
-                        "foo".to_owned(),
-                        "257cc5642cb1a054f08cc83f2d943e56fd3ebe99".to_owned()
-                    )
-                ])
-            );
+    fn is_ignored(&self, file: &Path) -> bool {
+        if let Some(ignore) = &self.ignore {
+            ignore.matched(file, false).is_ignore()
+        } else {
+            false
         }
     }
 
-    mod get_file_tree_hashes {
-        use super::*;
+    async fn is_shallow_checkout(&self) -> miette::Result<bool> {
+        let result = if self.is_version_supported(">=2.15.0").await? {
+            let result = self
+                .process
+                .run(["rev-parse", "--is-shallow-repository"], true)
+                .await?;
 
-        #[tokio::test]
-        async fn filters_ignored_files() {
-            let fixture = create_sandbox_with_git("ignore");
-            let git = Git::new("master", fixture.path()).unwrap();
+            result.as_str() == "true"
+        } else {
+            let result = self.process.run(["rev-parse", "--git-dir"], true).await?;
 
-            assert_eq!(
-                git.get_file_tree_hashes(".").await.unwrap(),
-                BTreeMap::from([
-                    (
-                        ".gitignore".to_owned(),
-                        "589c59be54beff591804a008c972e76dea31d2d1".to_owned()
-                    ),
-                    (
-                        "dir/qux".to_owned(),
-                        "100b0dec8c53a40e4de7714b2c612dad5fad9985".to_owned()
-                    ),
-                    (
-                        "foo".to_owned(),
-                        "257cc5642cb1a054f08cc83f2d943e56fd3ebe99".to_owned()
-                    ),
-                    (
-                        "shared-workspace.yml".to_owned(),
-                        "b4be93368a88e7038c02969b78d024a23ebe97a5".to_owned()
-                    )
-                ])
-            );
-        }
+            result.contains("shallow")
+        };
+
+        Ok(result)
     }
 }

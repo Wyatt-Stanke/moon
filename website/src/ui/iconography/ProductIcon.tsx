@@ -1,4 +1,3 @@
-import React from 'react';
 import { faDiscord, faGithub, faTwitter } from '@fortawesome/free-brands-svg-icons';
 import {
 	faCircle,
@@ -7,6 +6,7 @@ import {
 	faCirclePlus,
 	faDiagramProject,
 	faGrid2,
+	faScrewdriverWrench,
 	faSliders,
 	faSpaceStationMoonConstruction,
 	faSquare,
@@ -34,6 +34,7 @@ const icons = {
 	'task-config': faCircleBolt,
 	token: faTriangle,
 	toolchain: faToolbox,
+	'toolchain-config': faScrewdriverWrench,
 	twitter: faTwitter,
 	workspace: faGrid2,
 	'workspace-config': faSliders,

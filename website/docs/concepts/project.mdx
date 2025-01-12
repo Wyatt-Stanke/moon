@@ -11,7 +11,7 @@ files, assets, resources, and more. A project must exist and be configured withi
 A project name (or identifier) is a unique resource for locating a project. The name is explicitly
 configured within [`.moon/workspace.yml`](../config/workspace), as a key within the
 [`projects`](../config/workspace#projects) setting, and can be written in camel/kebab/snake case.
-Names support `a-z`, `A-Z`, `0-9`, `_`, `-`, `/`, and must start with a character.
+Names support `a-z`, `A-Z`, `0-9`, `_`, `-`, `/`, `.`, and must start with a character.
 
 Names are used heavily by configuration and the command line to link and reference everything.
 They're also a much easier concept for remembering projects than file system paths, and they
@@ -30,19 +30,18 @@ in moon. Instead, they are specific to a project's primary programming language,
 based on that context (when enabled in settings). For example, a JavaScript or TypeScript project
 will use the `name` field from its `package.json` as the alias.
 
-Because of this, a project can either be reference by its name or alias, or both. Choose the pattern
-that makes the most sense for your company or team!
+Because of this, a project can either be referenced by its name or alias, or both. Choose the
+pattern that makes the most sense for your company or team!
 
 ## Dependencies
 
-Projects can depend on other projects within the [workspace](./workspace) to build a project graph,
-and in turn, a dependency graph for executing [tasks](./task). Project dependencies are divided into
-2 categories:
+Projects can depend on other projects within the [workspace](./workspace) to build a
+[project graph](../how-it-works/action-graph), and in turn, an action graph for executing
+[tasks](./task). Project dependencies are divided into 2 categories:
 
 - **Explicit dependencies** - These are dependencies that are explicitly defined in a project's
   [`moon.yml`](../config/project) config file, using the [`dependsOn`](../config/project#dependson)
-  setting. Explicit dependencies provide more built-in functionality than implicit,
-  [like project syncing](../faq#what-should-be-considered-the-source-of-truth).
+  setting.
 - **Implicit dependencies** - These are dependencies that are implicitly discovered by moon when
   scanning the repository. How an implicit dependency is discovered is based on the project's
   [`language`](../config/project#language) setting, and how that language's ecosystem functions.
@@ -50,24 +49,4 @@ and in turn, a dependency graph for executing [tasks](./task). Project dependenc
 ## Configuration
 
 Projects can be configured with an optional [`moon.yml`](../config/project) in the project root, or
-through the optional [`.moon/project.yml`](../config/global-project) which applies to all projects.
-
-### `package.json`
-
-A moon project _does not require_ a `package.json`, but when one exists, the following functionality
-is enabled.
-
-- Dependency versions are included when computing cache keys and hashes.
-- Depended on projects ([`dependsOn`](../config/project#dependson)) are mapped as workspace
-  dependencies (when applicable).
-
-### `tsconfig.json`
-
-A moon project _does not require_ TypeScript or a `tsconfig.json`, but when one exists, the
-following functionality is enabled.
-
-- Depended on projects ([`dependsOn`](../config/project#dependson)) are mapped as TypeScript project
-  references (when applicable).
-
-> File name can be customized with the
-> [`typescript.projectConfigFileName`](../config/workspace#projectconfigfilename) setting.
+through the optional workspace-level [`.moon/tasks.yml`](../config/tasks).

@@ -1,4 +1,4 @@
-import { Action, ActionStatus } from '@moonrepo/types';
+import type { Action, ActionStatus } from '@moonrepo/types';
 import { getDurationInMillis } from './time';
 
 export function getIconForStatus(status: ActionStatus): string {
@@ -7,10 +7,12 @@ export function getIconForStatus(status: ActionStatus): string {
 	switch (status) {
 		case 'cached':
 			return '🟪';
-		// case 'cached-remote':
-		// 	return '🟦';
+		case 'cached-from-remote':
+			return '🟦';
 		case 'failed':
 		case 'failed-and-abort':
+		case 'aborted':
+		case 'timed-out':
 			return '🟥';
 		case 'invalid':
 			return '🟨';
@@ -25,24 +27,20 @@ export function getIconForStatus(status: ActionStatus): string {
 }
 
 export function hasFailed(status: ActionStatus): boolean {
-	return status === 'failed' || status === 'failed-and-abort';
+	return (
+		status === 'failed' ||
+		status === 'failed-and-abort' ||
+		status === 'aborted' ||
+		status === 'timed-out'
+	);
 }
 
 export function hasPassed(status: ActionStatus): boolean {
-	return status === 'passed' || status === 'cached';
+	return status === 'passed' || status === 'cached' || status === 'cached-from-remote';
 }
 
 export function isFlaky(action: Action): boolean {
-	if (action.flaky) {
-		return true;
-	}
-
-	// The flaky field above didn't always exist!
-	if (!action.attempts || action.attempts.length === 0) {
-		return false;
-	}
-
-	return hasPassed(action.status) && action.attempts.some((attempt) => hasFailed(attempt.status));
+	return action.flaky || false;
 }
 
 export function isSlow(action: Action, slowThreshold: number): boolean {

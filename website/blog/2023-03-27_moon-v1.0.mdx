@@ -1,0 +1,186 @@
+---
+slug: moon-v1.0
+title: moon v1.0 - Official release! Project constraints, tagging, and more!
+authors: [milesj]
+tags: [projects, constraints, tags, env-vars, tokens]
+image: ./img/moon/v1.0.png
+---
+
+🎉 It's finally here! After almost a year of development, a handful of breaking changes, we've
+officially reached a stable v1 of moon! This release is feature packed with quality of life
+improvements.
+
+<!--truncate-->
+
+## The road to v1
+
+It's been 10 months since moon launched publicly, and since that time we have landed 501 pull
+requests, fixed 100's of bugs, made 16 breaking changes, released 26 versions, and have been used by
+companies like Ikea, SumUp, Depot, and Gallery. It's been a wild ride, and we're excited to finally
+reach a stable v1 release.
+
+## Project boundaries with constraints
+
+One feature that moon has not supported, but is critical for large monorepos, is project boundaries.
+A project boundary is a concept that enforces a strict relationship between projects, and is a
+common pattern in monorepos. For example, a project may only be allowed to depend on projects with a
+[specific tag](#enforce-relationships-with-tags), or a project of a specific type.
+
+moon now supports this functionality through the new
+[`constraints`](/docs/config/workspace#constraints) setting in
+[`.moon/workspace.yml`](/docs/config/workspace). The primary constraint we're introducing is
+[`enforceProjectTypeRelationships`](/docs/config/workspace#enforceprojecttyperelationships), which
+enforces relationships between projects based on their [`type`](/docs/config/project#type) field.
+
+For example, an application can only depend on library or tool based projects, but _not_ other
+applications (this is a code smell). This setting is enabled by default!
+
+```yaml title=".moon/workspace.yml"
+constraints:
+  enforceProjectTypeRelationships: true
+```
+
+And that's not all, continue reading for more information on tag based constraints!
+
+## Project tagging
+
+Everyone is familiar with the concept of tagging, and moon's implementation is no different. Tags
+are a simple mechanism for categorizing projects, and can be defined through the
+[`tags`](/docs/config/project#tags) setting in [`moon.yml`](/docs/config/project).
+
+```yaml title="moon.yml"
+tags:
+  - 'react'
+  - 'prisma'
+```
+
+Tags can be used to group projects together for easier querying, enforcing of project boundaries,
+applying constraints, and more in the future. Tags will become a staple for maintaining repositories
+at scale. Continue reading for more information!
+
+### Querying projects by tag
+
+The first integration with tags is project querying. You can now query for projects by tag using the
+new `--tags` option in the [`moon query projects`](/docs/commands/query/projects) command. For
+example, say you want to find all projects that are tagged with `vue` or `trpc`:
+
+```shell
+$ moon query projects --tags 'vue|trpc'
+```
+
+### Enforce relationships with tags
+
+Another feature of tags is enforcing relationships between projects using our new
+[`constraints`](#project-boundaries-with-constraints) setting. When a tagged constraint is defined,
+it requires all [dependencies](/docs/concepts/project#dependencies) of a tagged project to require 1
+of the configured tags, otherwise an error is thrown during project graph creation.
+
+To demonstrate this, take the following configuration:
+
+```yaml title=".moon/workspace.yml" {2,3}
+constraints:
+  tagRelationships:
+    next: ['react', 'trpc']
+```
+
+This dictates that all dependencies of a project with the `next` tag, must declare either `react`,
+`trpc`, or `next` in their own tags. This is great for crafting a monorepo with strict project
+boundaries!
+
+## Shells for system tasks
+
+Up until now, all executed tasks would not be wrapped in a shell for 1 reason, to ensure tasks are
+deterministic. A major goal for moon is that tasks are deterministic and easily reproducible across
+all machines. Shells break this guarantee, as they can introduce subtle bugs that are difficult to
+diagnose, and may differ wildly between developers and machines.
+
+However in practice, not supporting shells has been a major pain point for many users, and for the
+most part, most system tasks typically run common commands or execute pre-defined scripts. The
+chance of a non-deterministic build is very small. As such, we've decided to make a compromise, and
+allow shells for [system tasks](/docs/config/project#platform-1), but not for language based tasks.
+
+For example, the following tasks:
+
+```yaml title="moon.yml"
+tasks:
+  example:
+    command: 'echo $PWD'
+    platform: 'system'
+  global:
+    command: 'bin-on-path'
+    platform: 'system'
+```
+
+Would now be executed as `/bin/sh -c 'echo $PWD'` and `/bin/sh -c 'bin-on-path'` on Unix platforms
+respectively. On Windows, we execute tasks with `pwsh.exe -c` and pass arguments via stdin.
+
+We're also taking this a step further, by introducing a new task option called
+[`shell`](/docs/config/project#shell), that can be used to toggle the shell wrapping on or off. When
+turned off, this allows you to customize and execute the shell as you please.
+
+```yaml title="moon.yml"
+tasks:
+  example:
+    command: 'bash -c "echo $PWD"'
+    platform: 'system'
+    options:
+      shell: false
+```
+
+## Environment variable substitution
+
+moon supports granular environment variables through the project-level
+[`env`](/docs/config/project#env) setting, task-level [`env`](/docs/config/project#env-1) setting,
+and the task [`envFile`](/docs/config/project#envfile) option. We're expanding their functionality
+with variable substitution, allowing the value of another environment variable to be interpolated
+using the syntax `${VAR_NAME}`. This is especially useful for composing complex environment
+variables.
+
+```yaml title="moon.yml"
+tasks:
+  dev:
+    command: 'app start'
+    env:
+      APP_TARGET: '${REGION}-${ENVIRONMENT}'
+```
+
+The same substitution syntax can also be used within `.env` files.
+
+```toml title=".env"
+APP_TARGET="${REGION}-${ENVIRONMENT}"
+```
+
+## Date/time token variables
+
+[Tokens](/docs/concepts/token) are a mechanism used in task configuration for dynamically injecting
+values from the current project or task, especially when task inheritance is involved. Tokens have
+existed since moon's inception, without much change... until now.
+
+We're excited to introduce a new set of tokens for referencing the
+[current date or time](/docs/concepts/token#datetime): `$date`, `$time`, `$datetime`, and
+`$timestamp`. With these new tokens, you're now able to implement clever or unusual solutions, like
+grouping builds or deploys based on the current timestamp.
+
+```yaml title="moon.yml"
+tasks:
+  deploy:
+    command: 'app deploy --output ./build/$timestamp'
+```
+
+## Other changes
+
+View the [official release](https://github.com/moonrepo/moon/releases/tag/v1.0.0) for a full list of
+changes.
+
+- Added a `hasher.warnOnMissingInputs` setting to `.moon/workspace.yml`.
+- Added a `$projectAlias` task token.
+- Added a `telemetry` setting to `.moon/workspace.yml`.
+- Updated the new version check to only run on the `check`, `ci`, `run`, and `sync` commands.
+
+## What's next?
+
+Expect the following in the v1.1 release!
+
+- Polish and stability initiatives.
+- Task inheritance based on tags.
+- Deno tier 3 support.

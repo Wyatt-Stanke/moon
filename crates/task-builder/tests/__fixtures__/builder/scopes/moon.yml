@@ -1,0 +1,7 @@
+language: 'javascript'
+type: 'application'
+tags: ['scope']
+
+tasks:
+  local:
+    command: 'local'

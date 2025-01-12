@@ -1,12 +1,9 @@
 ---
 source: crates/cli/tests/run_test.rs
-assertion_line: 840
-expression: get_assert_output(&assert2)
+expression: assert2.output()
 ---
-▪▪▪▪ outputs:generateFileAndFolder (cached)
+▪▪▪▪ npm install
+▪▪▪▪ outputs:generateFileAndFolder (cached, 100ms)
 
 Tasks: 1 completed (1 cached)
  Time: 100ms ❯❯❯❯ to the moon
-
-
-

@@ -1,32 +1,33 @@
 ---
-title: scaffold
+title: docker scaffold
+sidebar_label: scaffold
 ---
 
-import VersionLabel from '@site/src/components/Docs/VersionLabel';
-
-<VersionLabel header version="0.15" />
-
 The `moon docker scaffold <...projects>` command creates multiple repository skeletons for use
-within `Dockerfile`s to effectively take advantage of Docker's layer caching. It utilizes the
-[project graph][graph] to copy all critical files, like manifest, lockfiles, and configuration.
+within `Dockerfile`s, to effectively take advantage of Docker's layer caching. It utilizes the
+[project graph][graph] to copy only critical files, like manifests, lockfiles, and configuration.
 
 ```shell
 # Scaffold a skeleton to .moon/docker
 $ moon docker scaffold <project>
 ```
 
-> View the official [Docker usage guide](../../guides/docker) for a more in-depth example of how to
-> utilize this command.
+:::info
+
+View the official [Docker usage guide](../../guides/docker) for a more in-depth example of how to
+utilize this command.
+
+:::
 
 ### Arguments
 
-- `<...names>` - List of project names or aliases to scaffold sources for, as defined in
+- `<...projects>` - List of project names or aliases to scaffold sources for, as defined in
   [`projects`][graph].
 
-### Options
+### Configuration
 
-- `--include` - Additional files to include in the [sources](#sources) skeleton. Accepts a list of
-  file globs relative from the workspace root.
+- [`docker.scaffold`](../../config/workspace#scaffold) in `.moon/workspace.yml` (entire workspace)
+- [`docker.scaffold`](../../config/project#scaffold) in `moon.yml` (per project)
 
 ## How it works
 

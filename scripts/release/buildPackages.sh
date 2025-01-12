@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 
-# Change the working directory so that we avoid the CLI postinstall checks!
-cd scripts
+args="--addFiles --addEngines --addExports --declaration"
 
-# Build all packages with moon itself, so that the order is resolved correctly
-npm install -g pnpm
-pnpm --package @moonrepo/cli@latest dlx moon run :build
+export NODE_ENV=production
 
-# Note: yarn/npm/npx did not work here, but pnpm does!
+# Build types first since everything depends on it
+yarn packemon build-workspace --filter @moonrepo/types $args
+
+# Then just build everything
+yarn packemon build-workspace $args
+
+# Then build the visualizer with vite
+yarn workspace @moonrepo/visualizer run build

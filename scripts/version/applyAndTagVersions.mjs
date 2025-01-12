@@ -1,7 +1,10 @@
 import { existsSync } from 'fs';
 import fs from 'fs/promises';
+import readline from 'readline/promises';
 import chalk from 'chalk';
 import { execa } from 'execa';
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 async function getPackageVersions() {
 	const files = await fs.readdir('packages');
@@ -41,11 +44,11 @@ async function syncCargoVersion(oldVersion, newVersion) {
 async function releaseChangelog(newVersion) {
 	console.log('Releasing version in changelog');
 
-	let changelog = await fs.readFile('packages/cli/CHANGELOG.md', 'utf8');
+	let changelog = await fs.readFile('CHANGELOG.md', 'utf8');
 
 	changelog = changelog.replace('## Unreleased', `## ${newVersion}`);
 
-	await fs.writeFile('packages/cli/CHANGELOG.md', changelog, 'utf8');
+	await fs.writeFile('CHANGELOG.md', changelog, 'utf8');
 }
 
 async function removeLocalBuilds() {
@@ -53,21 +56,26 @@ async function removeLocalBuilds() {
 
 	try {
 		await Promise.all(
-			['linux-x64-gnu', 'linux-x64-musl', 'macos-arm64', 'macos-x64', 'windows-x64-msvc'].map(
-				async (target) => {
-					const binPath = `packages/core-${target}/moon${target.includes('windows') ? '.exe' : ''}`;
+			[
+				'linux-arm64-gnu',
+				'linux-arm64-musl',
+				'linux-x64-gnu',
+				'linux-x64-musl',
+				'macos-arm64',
+				'macos-x64',
+				'windows-x64-msvc',
+			].map(async (target) => {
+				const binPath = `packages/core-${target}/moon${target.includes('windows') ? '.exe' : ''}`;
 
-					if (existsSync(binPath)) {
-						await fs.unlink(binPath);
-					}
-				},
-			),
+				if (existsSync(binPath)) {
+					await fs.unlink(binPath);
+				}
+			}),
 		);
 
 		if (existsSync('target/release')) {
-			await fs.rmdir('target/release');
+			await fs.rm('target/release', { force: true, recursive: true });
 		}
-		// eslint-disable-next-line @typescript-eslint/no-implicit-any-catch
 	} catch (error) {
 		console.error(error.message);
 	}
@@ -86,7 +94,7 @@ async function createCommit(versions) {
 	await execa('git', ['commit', '-m', commit], { stdio: 'inherit' });
 }
 
-async function createTags(versions) {
+async function createTags(versions, cliVersion) {
 	console.log('Creating git tags');
 
 	await Promise.all(
@@ -94,6 +102,14 @@ async function createTags(versions) {
 			await execa('git', ['tag', version]);
 		}),
 	);
+
+	if (cliVersion) {
+		await execa('git', ['tag', `v${cliVersion}`]);
+	}
+}
+
+async function resetGit() {
+	await execa('git', ['reset', '--hard']);
 }
 
 async function run() {
@@ -125,6 +141,14 @@ async function run() {
 
 	logDiff(diff);
 
+	const answer = await rl.question(`Release (Y/n)? `);
+	rl.close();
+
+	if (answer.toLocaleLowerCase() === 'n') {
+		await resetGit();
+		return;
+	}
+
 	// Sync the cli version to the cli Cargo.toml
 	if (diff.some((file) => file.includes('@moonrepo/cli'))) {
 		await syncCargoVersion(prevVersions['@moonrepo/cli'], nextVersions['@moonrepo/cli']);
@@ -133,7 +157,7 @@ async function run() {
 
 	// Create git commit and tags
 	await createCommit(diff);
-	await createTags(diff);
+	await createTags(diff, nextVersions['@moonrepo/cli']);
 
 	console.log(chalk.green('Created commit and tags!'));
 }

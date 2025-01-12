@@ -1,2 +1,3 @@
-workspace:
-  typescript: false
+toolchain:
+  typescript:
+    disabled: true

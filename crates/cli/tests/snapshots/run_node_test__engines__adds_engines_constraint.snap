@@ -1,16 +1,19 @@
 ---
 source: crates/cli/tests/run_node_test.rs
-assertion_line: 347
-expression: "read_to_string(fixture.path().join(\"package.json\")).unwrap()"
+expression: "read_to_string(sandbox.path().join(\"package.json\")).unwrap()"
 ---
 {
-  "name": "test-cases",
+  "name": "test-node",
   "private": true,
   "workspaces": [
-    "*"
+    "base",
+    "lifecycles",
+    "postinstall-recursion",
+    "version-override"
   ],
+  "packageManager": "npm@8.19.0",
   "engines": {
-    "node": "16.0.0"
+    "node": "18.0.0"
   }
 }
 

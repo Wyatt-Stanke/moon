@@ -1,0 +1,29 @@
+---
+title: clean
+---
+
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
+
+The `proto clean` command can be used to uninstall stale and unused tools, plugins, and more. By
+default, it will remove items that haven't been used in the last 30 days.
+
+```shell
+$ proto clean
+```
+
+Furthermore, the command can be used to target a specific artifact type.
+
+```shell
+$ proto clean plugins
+```
+
+### Arguments
+
+- `[target]` - Type of target. Accepts `cache`, `plugins`, `temp`, or `tools`.
+  <VersionLabel version="0.44.0" />
+
+### Options
+
+- `--days` - Number of days before a tool is considered stale.
+- `--json` - Print the clean result in JSON format. <VersionLabel version="0.44.0" />
+- `--yes` - Avoid and confirm all prompts.

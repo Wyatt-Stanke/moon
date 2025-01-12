@@ -1,31 +1,46 @@
-mod errors;
-mod helpers;
+#![allow(clippy::disallowed_types)] // schematic
+
+#[cfg(feature = "loader")]
+mod config_cache;
+mod config_finder;
+#[cfg(feature = "loader")]
+mod config_loader;
+mod inherited_tasks_config;
+mod language_platform;
+mod macros;
+pub mod patterns;
+mod portable_path;
 mod project;
-mod providers;
+mod project_config;
+mod shapes;
 mod template;
+mod template_config;
+#[cfg(feature = "template")]
+mod templates;
+mod toolchain;
+mod toolchain_config;
 mod types;
-mod validators;
+mod validate;
 mod workspace;
+mod workspace_config;
 
-pub use errors::{format_error_line, format_figment_errors, ConfigError};
+pub use config_finder::*;
+#[cfg(feature = "loader")]
+pub use config_loader::*;
+pub use inherited_tasks_config::*;
+pub use language_platform::*;
+pub use portable_path::*;
 pub use project::*;
+pub use project_config::*;
+pub use semver::{Version, VersionReq};
+pub use shapes::*;
 pub use template::*;
+pub use template_config::*;
+#[cfg(feature = "template")]
+pub use templates::*;
+pub use toolchain::*;
+pub use toolchain_config::*;
 pub use types::*;
-pub use validator::ValidationErrors;
+pub use version_spec::{CalVer, SemVer, UnresolvedVersionSpec, VersionSpec};
 pub use workspace::*;
-
-pub fn load_workspace_config_template() -> &'static str {
-    include_str!("../templates/workspace.yml")
-}
-
-pub fn load_global_project_config_template() -> &'static str {
-    include_str!("../templates/global_project.yml")
-}
-
-// pub fn load_project_config_template() -> &'static str {
-//     include_str!("../templates/project.yml")
-// }
-
-pub fn load_template_config_template() -> &'static str {
-    include_str!("../templates/template.yml")
-}
+pub use workspace_config::*;

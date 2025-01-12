@@ -1,0 +1,44 @@
+[package]
+name = "moon_task_runner"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "System for running tasks."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+moon_api = { path = "../api" }
+moon_app_context = { path = "../app-context" }
+moon_action = { path = "../action" }
+moon_action_context = { path = "../action-context" }
+moon_cache = { path = "../cache" }
+moon_cache_item = { path = "../cache-item" }
+moon_common = { path = "../common" }
+moon_config = { path = "../config" }
+moon_console = { path = "../console" }
+# TODO remove
+moon_platform = { path = "../../legacy/core/platform" }
+moon_process = { path = "../process" }
+moon_project = { path = "../project" }
+moon_remote = { path = "../remote" }
+moon_task = { path = "../task" }
+moon_task_hasher = { path = "../task-hasher" }
+moon_time = { path = "../time" }
+miette = { workspace = true }
+serde = { workspace = true }
+starbase_archive = { workspace = true }
+starbase_utils = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+moon_affected = { path = "../affected" }
+moon_test_utils2 = { path = "../test-utils" }
+starbase_sandbox = { workspace = true }
+
+[lints]
+workspace = true

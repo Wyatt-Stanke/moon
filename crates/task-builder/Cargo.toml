@@ -1,0 +1,28 @@
+[package]
+name = "moon_task_builder"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Builder for creating, merging, and inheriting tasks."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+moon_common = { path = "../common" }
+moon_config = { path = "../config", features = ["loader"] }
+moon_target = { path = "../target" }
+moon_task = { path = "../task" }
+moon_task_args = { path = "../task-args" }
+moon_toolchain = { path = "../toolchain" }
+miette = { workspace = true }
+rustc-hash = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+starbase_sandbox = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

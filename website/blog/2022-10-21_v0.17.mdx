@@ -1,0 +1,205 @@
+---
+slug: v0.17
+title: moon v0.17 - Webhooks, extended YAML, and improved runtime performance
+authors: [milesj]
+tags: [notifier, runner, config, editors, vscode]
+image: ./img/v0.17.png
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+With this release, we're landing the first iteration of our notifier service, starting with
+webhooks! We've also spent some time working on quality of life improvements.
+
+<!--truncate-->
+
+## Breaking changes
+
+To start, we have a few breaking changes this release to be aware of!
+
+### Minor changes to ID formatting
+
+An ID refers to many things — project names, task names, target segments, so on and so forth. When
+parsing these values, we format them to remove unwanted characters, as these IDs are used in many
+contexts, many of which need to be strict.
+
+Previously, we would remove unwanted characters entirely. Instead, we now replace them with dashes
+(`-`) for better readability. Take the following for example:
+
+| ID         | Old       | New        |
+| :--------- | :-------- | :--------- |
+| domain.com | domaincom | domain-com |
+| build:esm  | buildesm  | build-esm  |
+
+### Task `type` has been renamed to `platform`
+
+This setting was renamed for a few reasons. To start, tasks actually have a
+[type internally](../docs/concepts/task#types) that is not configured, but is inferred based on
+what's configured. This was a bit confusing.
+
+And secondly, our toolchain refers to language integrations as platforms, and since this setting
+determines which tool to run with, we wanted to align on the platform terminology.
+
+<Tabs
+  groupId="task-type"
+  defaultValue="before"
+  values={[
+    { label: 'Before', value: 'before' },
+    { label: 'After', value: 'after' },
+  ]}
+>
+<TabItem value="before">
+
+```yaml
+tasks:
+  clean:
+    command: 'rm -rf ./dist'
+    type: 'system'
+```
+
+</TabItem>
+<TabItem value="after">
+
+```yaml
+tasks:
+  clean:
+    command: 'rm -rf ./dist'
+    platform: 'system'
+```
+
+</TabItem>
+</Tabs>
+
+> Because of this change, the `$taskType` token was also renamed to `$taskPlatform`!
+
+## Webhook events (experimental)
+
+Looking to gather metrics for your pipelines? Gain insight into run durations and failures? Maybe
+you want to send Slack or Discord notifications? With our new notifier system, this is now possible
+through webhooks!
+
+Simply enable the [`notifier.webhookUrl`](../docs/config/workspace#webhookurl) setting to start
+receiving events from your CI environments.
+
+```yaml title=".moon/workspace.yml"
+notifier:
+  webhookUrl: 'https://api.company.com/some/endpoint'
+```
+
+> View the [official guide on webhooks](../docs/guides/webhooks) for a full list of events and an
+> example payload structure!
+
+## YAML anchors and aliases
+
+We've updated our YAML configuration files to support extended syntax,
+[anchors (`&`) and aliases (`*`)](https://support.atlassian.com/bitbucket-cloud/docs/yaml-anchors/).
+With this new syntax, you're now able to reduce the amount of duplication required in your config
+files, especially when declaring tasks, as demonstrated below!
+
+<Tabs
+  groupId="yaml"
+  defaultValue="before"
+  values={[
+    { label: 'Before', value: 'before' },
+    { label: 'After', value: 'after' },
+  ]}
+>
+<TabItem value="before">
+
+```yaml
+tasks:
+  astro:
+    command: 'astro'
+    local: true
+
+  dev:
+    command: 'astro dev'
+    inputs:
+      - '@group(astro)'
+    local: true
+
+  build:
+    command: 'astro build'
+    inputs:
+      - '@group(astro)'
+    outputs:
+      - 'dist'
+
+  check:
+    command: 'astro check'
+    inputs:
+      - '@group(astro)'
+    deps:
+      - '~:typecheck'
+
+  preview:
+    command: 'astro preview'
+    inputs:
+      - '@group(astro)'
+    deps:
+      - '~:build'
+    local: true
+```
+
+</TabItem>
+<TabItem value="after">
+
+```yaml
+_astro: &astro
+  command: 'astro'
+  inputs:
+    - '@group(astro)'
+
+tasks:
+  dev:
+    <<: *astro
+    args: 'dev'
+    local: true
+
+  build:
+    <<: *astro
+    args: 'build'
+    outputs:
+      - 'dist'
+
+  check:
+    <<: *astro
+    args: 'check'
+
+  preview:
+    <<: *astro
+    args: 'preview'
+    deps:
+      - '~:build'
+    local: true
+```
+
+</TabItem>
+</Tabs>
+
+## VS Code extension
+
+If you missed the [announcement earlier this week](./vscode-extension), we released the initial
+version of our new VS Code extension! Give it a try and
+[refer to the documentation](../docs/editors/vscode) for more information.
+
+## Other changes
+
+View the
+[official release](https://github.com/moonrepo/moon/releases/tag/%40moonrepo%2Fcli%400.17.0) for a
+full list of changes.
+
+- Increased runtime performance and reduced memory consumption.
+- Template enum variables can now define objects for their
+  [`values`](../docs/config/template#values).
+- Task `deps` can now omit the `~:` prefix for tasks within the current project.
+- The `moon check` command can now use the `--report` option.
+
+## What's next?
+
+Expect the following in the v0.18 release!
+
+- Workflow improvements for `moon init`.
+- Benchmarks and performance tuning.
+- Individual stdout/stderr log files when running tasks.

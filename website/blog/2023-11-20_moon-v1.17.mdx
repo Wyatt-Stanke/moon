@@ -1,0 +1,179 @@
+---
+slug: moon-v1.17
+title: moon v1.17 - Full Bun support, TypeScript improvements, and more!
+authors: [milesj]
+tags: [bun, typescript, javascript]
+image: ./img/moon/v1.17.png
+---
+
+In this release, we've focused heavily on the JavaScript and TypeScript ecosystems, by improving our
+implementations, and providing full Bun support.
+
+<!--truncate-->
+
+## Bun tier 1, 2, and 3 support
+
+Yes you read that right! Not just 1 tier, not just 2 tiers, but all 3 language tiers have been
+implemented for Bun, providing [full language support](/docs/how-it-works/languages), and parity
+with Node.js. Thanks to the Bun work in [proto](/proto) and the previous
+[v1.16 release](./moon-v1.16), we were able to add full Bun support with relative easy.
+
+So what does Bun support look like? To start, you can now configure a
+[`bun`](/docs/config/toolchain#bun) setting in [`.moon/toolchain.yml`](/docs/config/toolchain),
+including an optional `version` to download and install, and settings similar to Node.js.
+
+```yaml title=".moon/toolchain.yml"
+bun:
+  version: '1.0.13'
+  syncProjectWorkspaceDependencies: true
+```
+
+This will enable the `bun` platform and the following integrations are applied:
+
+- Will automatically download and install Bun for the configured version.
+- Will install dependencies using `bun install` (deduping currently not supported).
+- Will parse `bun.lockb` for dependency resolution and task hashing.
+- Will use `bunx` instead of `npx` for one-off package executions.
+- Can execute `bun` commands within tasks.
+
+With the `bun` platform enabled, you can now configure the platform for projects and tasks (is
+automatically detected when running the `bun` or `bunx` commands).
+
+```yaml title="<project>/moon.yml"
+# Default platform for all tasks (optional)
+platform: 'bun'
+
+tasks:
+  dev:
+    command: 'bun run dev'
+  test:
+    command: 'bun test'
+  lint:
+    command: 'eslint .'
+    # Only required for npm packages (if not defined above)
+    platform: 'bun'
+```
+
+## TypeScript improvements
+
+### Configure the root directory
+
+When moon was first designed, it was designed for JavaScript based monorepos. Because of this, there
+were a handful of assumptions that still exist today, one of which is that the moon workspace root
+was assumed to be the JavaScript and TypeScript root. The root is extremely important in resolving
+relative paths for project references and other path based functionality, so using the workspace
+root made the most sense.
+
+However, what if your TypeScript root isn't the workspace root? Or the TypeScript root and
+JavaScript root are different? Well, you were out of luck... until now! We're introducing a new
+setting called [`typescript.root`](/docs/config/toolchain#root), that denotes the root directory for
+TypeScript related functionality (relative from moon's workspace root).
+
+```yaml title=".moon/toolchain.yml"
+typescript:
+  root: './typescript'
+```
+
+### Include shared types
+
+Another common TypeScript practice is to have shared `.d.ts` types that are used across multiple
+projects, or to augment third-party types. This is so common that we felt obligated to support it in
+some capacity within moon. With that said, we're introducing a new setting,
+[`typescript.includeSharedTypes`](/docs/config/toolchain#includesharedtypes).
+
+```yaml title=".moon/toolchain.yml"
+typescript:
+  includeSharedTypes: true
+```
+
+When enabled, we'll automatically sync the shared types path to the `include` field of all relevant
+project `tsconfig.json`s. However, for this to work correctly, the shared types _must_ exist in a
+`types` folder relative from the [TypeScript root](#configure-the-root-directory).
+
+For example, if the TypeScript root is `/`, and shared types is `/types`, then all packages in
+`/packages/*` will be updated with the following:
+
+```json title="packages/example/tsconfig.json"
+{
+  "include": ["../../types/**/*"]
+}
+```
+
+> This setting can be overridden on a per-project basis.
+
+### Include sources of project references
+
+Continuing with `include` related functionality, we've introducing yet another new setting,
+[`typescript.includeProjectReferenceSources`](/docs/config/toolchain#includeprojectreferencesources),
+which does exactly as its name implies. It automatically appends the sources (`**/*`) of all project
+references to the `include` field of all relevant project `tsconfig.json`s.
+
+This is useful (and sometimes required) for the following reasons:
+
+- It makes files within a referenced project available for import into the consuming project. This
+  is required for "press tab to auto-import" nested/deep files, otherwise only index imports will
+  work (and barrel files are costly).
+- It also improves the editor experience by making the source files available for intellisense,
+  autocomplete, and other features.
+
+```yaml title=".moon/toolchain.yml"
+typescript:
+  includeProjectReferenceSources: true
+```
+
+To understand this functionality, say you have a project with the following `tsconfig.json`, and
+this project depends on 2 other projects: ui and utils.
+
+```json title="packages/example/tsconfig.json"
+{
+  "compilerOptions": {},
+  "include": ["src/**/*"]
+}
+```
+
+When our syncing process occurs, we'll automatically sync project references, and include referenced
+sources, like so.
+
+```json title="packages/example/tsconfig.json"
+{
+  "compilerOptions": {},
+  "include": ["src/**/*", "../ui/**/*", "../utils/**/*"],
+  "references": [{ "path": "../ui" }, { "path": "../utils" }]
+}
+```
+
+> This setting can also be overridden on a per-project basis.
+
+## JavaScript improvements
+
+### Supporting the "single version policy" pattern
+
+If you're unfamiliar with the single version policy, or the one version rule, it's a pattern that
+only allows dependencies to be configured in a single location, typically the root `package.json`.
+This pattern forces _all_ projects in a monorepo to use the same dependencies, and avoid the package
+`workspaces` functionality.
+
+This pattern was previously not possible in moon, as our automatic dependency installation process
+did not account for it, and it would either install in the root if using `workspaces`, or in a
+project otherwise. To support this pattern, we're introducing the new setting
+[`node.rootPackageOnly`](/docs/config/toolchain#rootpackageonly) for Node.js, and
+`bun.rootPackageOnly` for Bun.
+
+```yaml title=".moon/toolchain.yml"
+node:
+  rootPackageOnly: true
+```
+
+When enabled, we'll only install dependencies in the workspace root, regardless of other settings or
+how `package.json`s are configured. However, this setting _does not_ verify that other
+`package.json`s _do not_ have dependencies. It's up to you to ensure that other `package.json`s do
+not have dependencies.
+
+## Other changes
+
+View the [official release](https://github.com/moonrepo/moon/releases/tag/v1.17.0) for a full list
+of changes.
+
+- Updated automatic dependency linking to use the `build` scope instead of `peer` scope. This should
+  alleviate some of the pain points with `package.json` syncing.
+- Improved project reference syncing and edge case handling.

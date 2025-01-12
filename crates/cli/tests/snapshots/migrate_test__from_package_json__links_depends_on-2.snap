@@ -1,11 +1,9 @@
 ---
 source: crates/cli/tests/migrate_test.rs
-assertion_line: 40
-expression: "fs::read_to_string(fixture.path().join(\"package-json/deps/moon.yml\")).unwrap()"
+expression: "fs::read_to_string(sandbox.path().join(\"package-json/deps/moon.yml\")).unwrap()"
 ---
 dependsOn:
 - common
-language: javascript
 tasks:
   build:
     command:
@@ -15,8 +13,7 @@ tasks:
     - ./lib
     outputs:
     - lib
-    type: node
+    toolchain: node
   test:
     command: jest
-    type: node
-
+    toolchain: node

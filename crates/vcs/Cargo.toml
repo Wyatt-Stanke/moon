@@ -1,14 +1,35 @@
 [package]
 name = "moon_vcs"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+license = "MIT"
+description = "VCS adapters."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
 
 [dependencies]
-moon_config = { path = "../config" }
-moon_error = { path = "../error" }
-moon_utils = { path = "../utils" }
-async-trait = "0.1.57"
-ignore = "0.4.18"
-regex = "1.6.0"
+moon_common = { path = "../common" }
+moon_process = { path = "../process" }
+async-trait = { workspace = true }
+futures = { workspace = true }
+git-url-parse = "0.4.5"
+ignore = "0.4.23"
+miette = { workspace = true }
+once_cell = { workspace = true }
+regex = { workspace = true }
+rustc-hash = { workspace = true }
+scc = { workspace = true }
+semver = { workspace = true }
+serde = { workspace = true }
+starbase_utils = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+starbase_sandbox = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,22 @@
+[package]
+name = "moon_query"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Query language for moon (MQL)."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+moon_common = { path = "../common" }
+moon_config = { path = "../config" }
+miette = { workspace = true }
+pest = "2.7.15"
+pest_derive = "2.7.15"
+starbase_utils = { workspace = true, features = ["glob"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

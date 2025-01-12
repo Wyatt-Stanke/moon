@@ -1,0 +1,14 @@
+---
+source: legacy/cli/tests/run_bun_test.rs
+expression: assert.output()
+---
+▪▪▪▪ bun install
+▪▪▪▪ bun:unhandledPromise
+stdout
+▪▪▪▪ bun:unhandledPromise (100ms)
+stderr
+error: Oops
+Error: task_runner::run_failed
+
+  × Task bun:unhandledPromise failed to run.
+  ╰─▶ Process bun failed: exit code 1

@@ -1,0 +1,147 @@
+---
+slug: moon-v1.18
+title: moon v1.18 - New task execution flow and custom project names
+authors: [milesj]
+tags: [toolchain, shell, id, name, project, init, onboarding]
+image: ./img/moon/v1.18.png
+---
+
+With this release, we've focused heavily on 2 important aspects: task execution, and our onboarding
+flow.
+
+<!--truncate-->
+
+## New path based task execution
+
+Since moon's inception, before we would execute a task's command, we would locate its executable on
+the file system and execute it directly. We went with this approach as we wanted to avoid all of the
+baggage and "unknown behavior" that came with executing through a shell, and to ensure a more
+deterministic outcome. This approach worked very well for stand-alone binaries, like `node`,
+`cargo`, and built-in commands like `rm`, `mkdir`, and `git`.
+
+However, it was very problematic in 2 scenarios: executables from language dependencies (Node.js
+modules, etc), and multi-command based tasks (using `&&`). To remedy this situation, we're no longer
+locating the executables ourselves, and instead are prepending `PATH` with the locations in which we
+know these executables should exist. We're also loosening the restriction on the
+[`shell` task option](/docs/config/project#shell), which can now be enabled for _all_ tasks, not
+just system tasks.
+
+### Dependency executables
+
+For the 1st scenario, let's talk about Node.js modules. When we encountered an unknown task command,
+like `eslint` or `prettier`, we'd attempt to locate its executable by traversing `node_modules/.bin`
+directories, parsing Bash/PowerShell scripts, resolving the source `.js` files, and finally
+executing with `node`. To demonstrate this, say you had the following task:
+
+```yaml title="moon.yml"
+tasks:
+  format:
+    command: 'prettier --write .'
+```
+
+When finally executed, internally it would become something like this command:
+
+```shell
+~/.proto/tools/node/<version>/bin/node ../../node_modules/prettier/internal/cli.mjs --write .
+```
+
+This was required since our runtime is Rust and we don't have access to Node.js's module resolution
+algorithm... but this approach was very brittle and error prone. It took us many releases to iron
+out all the bugs, and we're pretty sure there are still edge cases unaccounted for. So instead, as
+mentioned above, we now prepend `PATH`, resulting in the following command:
+
+```shell
+PATH="/path/to/node_modules/.bin:/path/to/proto/tools:$PATH" prettier --write .
+```
+
+This is a much cleaner approach and is far easier to understand as a user.
+
+### Multi-command tasks
+
+While not officially supported in moon, it's been possible to run multiple commands in a single task
+using `&&` syntax. However, this approach did not work correctly with our integrated toolchain, as
+only the 1st command in the list would have its binary be located and executed correctly.
+
+For example, say we wanted to run 2 npm packages, the following would _not_ work:
+
+```yaml title="moon.yml"
+tasks:
+  build:
+    command: 'rm -rf dist && vite build && tsc --build'
+```
+
+With this new `PATH` based approach, this will now work correctly. And furthermore, this also
+enables executables within Bash and PowerShell scripts to be located and executed correctly as well.
+
+### What's next?
+
+In the future, we'll continue to expand on this functionality, and our ultimate goal is to remove
+the concept of `platform` from tasks, which has been a bit confusing for new users.
+
+## Customize the project name in `moon.yml`
+
+This has been a long requested feature, but thanks to the project graph rework and improvements over
+the last few releases, this is now possible. In [`moon.yml`](/docs/config/project), you can now
+configure the [`id`](/docs/config/project#id) setting to override the project name (identifier)
+derived from [`projects`](/docs/config/workspace#projects) in
+[`.moon/workspace.yml`](/docs/config/workspace) (most applicable to glob based project locations).
+
+For example, say we have the following `projects` glob.
+
+```yaml title=".moon/workspace.yml"
+projects:
+  - 'apps/*'
+  - 'packages/*'
+```
+
+By default, the project folder name becomes the project name. For the most part this is fine, but
+what if you have a very large monorepo? Or have conflicting project names? Or are migrating
+projects? It becomes difficult to manage and organize. But now, simply configure `id`!
+
+```yaml title="<project>/moon.yml"
+id: 'custom-project-name'
+```
+
+:::info
+
+Be sure that all targets, project dependencies, task dependencies, and other references are using
+the new identifier, otherwise an error will be triggered!
+
+:::
+
+## Improved onboarding flow
+
+While this doesn't affect current users, we still want to announce that we've made some slight
+changes to our onboarding process and the [`moon init`](/docs/commands/init) command. The previous
+command prompted far too many questions, as we would attempt to detect what languages are currently
+in use, and integrate them into the toolchain.
+
+This was confusing for new users, so starting with this release, we've simplified the process to
+only create the moon workspace within a repository.
+
+```shell
+moon init
+```
+
+With that being said, you can still integrate tools into the toolchain, by passing the identifier of
+a supported moon tool as an argument.
+
+```shell
+moon init node # bun, rust, etc
+```
+
+:::success
+
+We've also rewritten a good portion of the "[Getting started](/docs/setup-workspace)" documentation
+to reflect these changes!
+
+:::
+
+## Other changes
+
+View the [official release](https://github.com/moonrepo/moon/releases/tag/v1.18.0) for a full list
+of changes.
+
+- Improved string allocation and performance for queries, task tokens, and process commands.
+- Improved remote caching flow and handling.
+- Updated proto to v0.25.

@@ -1,10 +1,11 @@
-import { RunReport } from '@moonrepo/types';
+import type { RunReport } from '@moonrepo/types';
 import { prepareReportActions, sortReport } from '../src';
 
 function mockReport(): RunReport {
 	return {
 		actions: [
 			{
+				allowFailure: false,
 				attempts: null,
 				createdAt: '2022-09-12T22:50:12.621680Z',
 				duration: {
@@ -13,11 +14,18 @@ function mockReport(): RunReport {
 				},
 				error: null,
 				flaky: false,
-				label: 'RunTarget(types:build)',
-				nodeIndex: 5,
+				label: 'RunTask(types:build)',
+				node: {
+					action: 'sync-workspace',
+				},
+				nodeIndex: 0,
+				operations: [],
 				status: 'cached',
+				finishedAt: '2022-09-12T22:50:12.932311Z',
+				startedAt: '2022-09-12T22:50:12.932311Z',
 			},
 			{
+				allowFailure: false,
 				attempts: null,
 				createdAt: '2022-09-12T22:50:12.932177Z',
 				duration: {
@@ -26,11 +34,18 @@ function mockReport(): RunReport {
 				},
 				error: null,
 				flaky: true,
-				label: 'RunTarget(runtime:typecheck)',
-				nodeIndex: 4,
+				label: 'RunTask(runtime:typecheck)',
+				node: {
+					action: 'sync-workspace',
+				},
+				nodeIndex: 1,
+				operations: [],
 				status: 'passed',
+				finishedAt: '2022-09-12T22:50:12.932311Z',
+				startedAt: '2022-09-12T22:50:12.932311Z',
 			},
 			{
+				allowFailure: false,
 				attempts: null,
 				createdAt: '2022-09-12T22:50:12.932228Z',
 				duration: {
@@ -39,11 +54,18 @@ function mockReport(): RunReport {
 				},
 				error: null,
 				flaky: false,
-				label: 'RunTarget(types:typecheck)',
-				nodeIndex: 6,
+				label: 'RunTask(types:typecheck)',
+				node: {
+					action: 'sync-workspace',
+				},
+				nodeIndex: 2,
+				operations: [],
 				status: 'passed',
+				finishedAt: '2022-09-12T22:50:12.932311Z',
+				startedAt: '2022-09-12T22:50:12.932311Z',
 			},
 			{
+				allowFailure: false,
 				attempts: null,
 				createdAt: '2022-09-12T22:50:12.932311Z',
 				duration: {
@@ -52,28 +74,42 @@ function mockReport(): RunReport {
 				},
 				error: null,
 				flaky: false,
-				label: 'RunTarget(website:typecheck)',
-				nodeIndex: 8,
+				label: 'RunTask(website:typecheck)',
+				node: {
+					action: 'sync-workspace',
+				},
+				nodeIndex: 3,
+				operations: [],
 				status: 'passed',
+				finishedAt: '2022-09-12T22:50:12.932311Z',
+				startedAt: '2022-09-12T22:50:12.932311Z',
 			},
 		],
 		context: {
+			affectedOnly: false,
+			initialTargets: [],
 			passthroughArgs: [],
 			primaryTargets: [],
 			profile: null,
+			targetStates: {},
 			touchedFiles: [],
 		},
 		duration: {
 			secs: 0,
 			nanos: 371_006_844,
 		},
-		estimatedSavings: {
-			secs: 0,
-			nanos: 990_820_168,
-		},
-		projectedDuration: {
-			secs: 1,
-			nanos: 361_827_012,
+		comparisonEstimate: {
+			duration: {
+				secs: 1,
+				nanos: 361_827_012,
+			},
+			tasks: {},
+			loss: null,
+			gain: {
+				secs: 0,
+				nanos: 990_820_168,
+			},
+			percent: 0,
 		},
 	};
 }
@@ -84,10 +120,10 @@ describe('sortReport()', () => {
 		sortReport(report, 'time', 'asc');
 
 		expect(report.actions.map((a) => a.label)).toEqual([
-			'RunTarget(types:build)',
-			'RunTarget(website:typecheck)',
-			'RunTarget(types:typecheck)',
-			'RunTarget(runtime:typecheck)',
+			'RunTask(types:build)',
+			'RunTask(website:typecheck)',
+			'RunTask(types:typecheck)',
+			'RunTask(runtime:typecheck)',
 		]);
 	});
 
@@ -96,10 +132,10 @@ describe('sortReport()', () => {
 		sortReport(report, 'time', 'desc');
 
 		expect(report.actions.map((a) => a.label)).toEqual([
-			'RunTarget(runtime:typecheck)',
-			'RunTarget(types:typecheck)',
-			'RunTarget(website:typecheck)',
-			'RunTarget(types:build)',
+			'RunTask(runtime:typecheck)',
+			'RunTask(types:typecheck)',
+			'RunTask(website:typecheck)',
+			'RunTask(types:build)',
 		]);
 	});
 
@@ -108,10 +144,10 @@ describe('sortReport()', () => {
 		sortReport(report, 'label', 'asc');
 
 		expect(report.actions.map((a) => a.label)).toEqual([
-			'RunTarget(runtime:typecheck)',
-			'RunTarget(types:build)',
-			'RunTarget(types:typecheck)',
-			'RunTarget(website:typecheck)',
+			'RunTask(runtime:typecheck)',
+			'RunTask(types:build)',
+			'RunTask(types:typecheck)',
+			'RunTask(website:typecheck)',
 		]);
 	});
 
@@ -120,10 +156,10 @@ describe('sortReport()', () => {
 		sortReport(report, 'label', 'desc');
 
 		expect(report.actions.map((a) => a.label)).toEqual([
-			'RunTarget(website:typecheck)',
-			'RunTarget(types:typecheck)',
-			'RunTarget(types:build)',
-			'RunTarget(runtime:typecheck)',
+			'RunTask(website:typecheck)',
+			'RunTask(types:typecheck)',
+			'RunTask(types:build)',
+			'RunTask(runtime:typecheck)',
 		]);
 	});
 });
@@ -138,7 +174,8 @@ describe('prepareReportActions()', () => {
 					secs: 0,
 				},
 				icon: '🟪',
-				label: 'RunTarget(types:build)',
+				label: 'RunTask(types:build)',
+				status: 'cached',
 				time: '0s',
 			},
 			{
@@ -148,7 +185,8 @@ describe('prepareReportActions()', () => {
 					secs: 1922,
 				},
 				icon: '🟩',
-				label: 'RunTarget(runtime:typecheck)',
+				label: 'RunTask(runtime:typecheck)',
+				status: 'passed',
 				time: '32m 2s',
 			},
 			{
@@ -158,7 +196,8 @@ describe('prepareReportActions()', () => {
 					secs: 64,
 				},
 				icon: '🟩',
-				label: 'RunTarget(types:typecheck)',
+				label: 'RunTask(types:typecheck)',
+				status: 'passed',
 				time: '1m 4s',
 			},
 			{
@@ -168,7 +207,8 @@ describe('prepareReportActions()', () => {
 					secs: 34,
 				},
 				icon: '🟩',
-				label: 'RunTarget(website:typecheck)',
+				label: 'RunTask(website:typecheck)',
+				status: 'passed',
 				time: '34.4s',
 			},
 		]);

@@ -1,0 +1,12 @@
+[package]
+name = "moon_logger"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[dependencies]
+console = { workspace = true }
+log = "0.4.22"
+
+[lints]
+workspace = true

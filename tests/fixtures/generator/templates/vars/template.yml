@@ -1,3 +1,5 @@
+$schema: 'https://moonrepo.dev/schemas/template.json'
+
 title: 'Variable testing'
 description: 'A template for testing all variable config combinations.'
 variables:
@@ -48,36 +50,41 @@ variables:
   enum:
     type: 'enum'
     values: ['a', 'b', 'c']
-    default: ''
+    # default: ''
     prompt: 'Enum, empty default'
   enumNotEmpty:
     type: 'enum'
     values: ['a', 'b', 'c']
     default: 'b'
     prompt: 'Enum, with default'
-  enumInvalidDefault:
-    type: 'enum'
-    values: ['a', 'b', 'c']
-    default: 'z'
-    prompt: 'Enum, invalid default'
   multenum:
     type: 'enum'
-    values: ['a', 'b', 'c']
-    default: ''
+    values:
+      - label: A
+        value: a
+      - label: B
+        value: b
+      - label: C
+        value: c
+    # default: ''
     prompt: 'Multi-enum, empty default'
     multiple: true
   multenumNotEmpty:
     type: 'enum'
-    values: ['a', 'b', 'c']
+    values:
+      - label: A
+        value: a
+      - label: B
+        value: b
+      - label: C
+        value: c
     default: 'b'
     prompt: 'Multi-enum, with default'
-    multiple: true
-  multenumInvalidDefault:
-    type: 'enum'
-    values: ['a', 'b', 'c']
-    default: 'z'
-    prompt: 'Multi-enum, invalid default'
     multiple: true
   noPrompt:
     type: 'number'
     default: 456
+  internal:
+    type: 'string'
+    default: 'original'
+    internal: true

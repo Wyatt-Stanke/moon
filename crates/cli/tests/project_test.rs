@@ -1,105 +1,195 @@
-use insta::assert_snapshot;
-use moon_utils::test::{
-    create_moon_command, create_sandbox, get_assert_output, get_assert_stderr_output_clean,
+use moon_test_utils::predicates::Predicate;
+use moon_test_utils::{
+    assert_snapshot, create_sandbox_with_config, get_assert_stderr_output,
+    get_cases_fixture_configs, get_projects_fixture_configs, predicates,
 };
 
 #[test]
+fn invalid_project_id() {
+    let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+    let sandbox = create_sandbox_with_config(
+        "projects",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
+
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("=");
+    });
+
+    let output = get_assert_stderr_output(&assert.inner);
+
+    assert.failure().code(2);
+
+    assert!(predicates::str::contains("invalid value '=' for '<ID>'").eval(&output));
+}
+
+#[test]
 fn unknown_project() {
-    let fixture = create_sandbox("projects");
+    let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-    let assert = create_moon_command(fixture.path())
-        .arg("project")
-        .arg("unknown")
-        .assert();
+    let sandbox = create_sandbox_with_config(
+        "projects",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
 
-    assert_snapshot!(get_assert_stderr_output_clean(&assert));
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("unknown");
+    });
+
+    assert_snapshot!(get_assert_stderr_output(&assert.inner));
 
     assert.failure().code(1);
 }
 
 #[test]
 fn empty_config() {
-    let fixture = create_sandbox("projects");
+    let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-    let assert = create_moon_command(fixture.path())
-        .arg("project")
-        .arg("emptyConfig")
-        .assert();
+    let sandbox = create_sandbox_with_config(
+        "projects",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
 
-    assert_snapshot!(get_assert_output(&assert));
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("emptyConfig");
+    });
+
+    assert_snapshot!(assert.output());
 }
 
 #[test]
 fn no_config() {
-    let fixture = create_sandbox("projects");
+    let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-    let assert = create_moon_command(fixture.path())
-        .arg("project")
-        .arg("noConfig")
-        .assert();
+    let sandbox = create_sandbox_with_config(
+        "projects",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
 
-    assert_snapshot!(get_assert_output(&assert));
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("noConfig");
+    });
+
+    assert_snapshot!(assert.output());
 }
 
 #[test]
 fn basic_config() {
     // with dependsOn and fileGroups
-    let fixture = create_sandbox("projects");
+    let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-    let assert = create_moon_command(fixture.path())
-        .arg("project")
-        .arg("basic")
-        .assert();
+    let sandbox = create_sandbox_with_config(
+        "projects",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
 
-    assert_snapshot!(get_assert_output(&assert));
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("basic");
+    });
+
+    assert_snapshot!(assert.output());
 }
 
 #[test]
 fn advanced_config() {
     // with project metadata
-    let fixture = create_sandbox("projects");
+    let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-    let assert = create_moon_command(fixture.path())
-        .arg("project")
-        .arg("advanced")
-        .assert();
+    let sandbox = create_sandbox_with_config(
+        "projects",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
 
-    assert_snapshot!(get_assert_output(&assert));
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("advanced");
+    });
+
+    assert_snapshot!(assert.output());
 }
 
 #[test]
 fn depends_on_paths() {
     // shows dependsOn paths when they exist
-    let fixture = create_sandbox("projects");
+    let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-    let assert = create_moon_command(fixture.path())
-        .arg("project")
-        .arg("foo")
-        .assert();
+    let sandbox = create_sandbox_with_config(
+        "projects",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
 
-    assert_snapshot!(get_assert_output(&assert));
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("foo");
+    });
+
+    assert_snapshot!(assert.output_standardized());
 }
 
 #[test]
 fn with_tasks() {
-    let fixture = create_sandbox("projects");
+    let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-    let assert = create_moon_command(fixture.path())
-        .arg("project")
-        .arg("tasks")
-        .assert();
+    let sandbox = create_sandbox_with_config(
+        "projects",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
 
-    assert_snapshot!(get_assert_output(&assert));
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("tasks");
+    });
+
+    assert_snapshot!(assert.output());
 }
 
 #[test]
 fn root_level() {
-    let fixture = create_sandbox("cases");
+    let (workspace_config, toolchain_config, tasks_config) = get_cases_fixture_configs();
 
-    let assert = create_moon_command(fixture.path())
-        .arg("project")
-        .arg("root")
-        .assert();
+    let sandbox = create_sandbox_with_config(
+        "cases",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
 
-    assert_snapshot!(get_assert_output(&assert));
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("root");
+    });
+
+    assert_snapshot!(assert.output());
+}
+
+#[test]
+fn includes_metadata() {
+    // with project metadata
+    let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+    let sandbox = create_sandbox_with_config(
+        "projects",
+        Some(workspace_config),
+        Some(toolchain_config),
+        Some(tasks_config),
+    );
+
+    let assert = sandbox.run_moon(|cmd| {
+        cmd.arg("project").arg("metadata");
+    });
+
+    assert_snapshot!(assert.output());
 }

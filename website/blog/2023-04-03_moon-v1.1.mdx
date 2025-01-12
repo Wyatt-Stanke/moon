@@ -1,0 +1,98 @@
+---
+slug: moon-v1.1
+title: moon v1.1 - Task debugging and improvements
+authors: [milesj]
+tags: [tokens, tasks]
+image: ./img/moon/v1.1.png
+---
+
+With this release, we're introducing some quality of life task improvements.
+
+<!--truncate-->
+
+## Token variable support in task commands
+
+moon supports a concept known as [tokens](/docs/concepts/token) where values are injected into tasks
+during project graph creation. This allows for dynamic values in your tasks, such as the current
+project language, or the current task name, and is crucial for task inheritance to work.
+
+However, tokens were only supported by task args, inputs, and outputs, but not commands... until
+now. Commands can now use token variables (but not token functions). For example, this is useful for
+referencing shared scripts from the workspace root.
+
+```yaml title="moon.yml"
+tasks:
+  precheck:
+    command: '$workspaceRoot/scripts/precheck.sh'
+```
+
+## Run targets in closest project
+
+The [`moon run`](/docs/commands/run) command can run targets in an array of different formats, but
+was unable to run targets based on the current working directory. Well no more! You can now run
+tasks from the closest project based on file path by omitting `:` from the target name.
+
+```shell
+$ cd packages/components
+
+# Runs `components:build` internally
+$ moon run build
+```
+
+## View resolved task information
+
+Debugging task issues can be a quite a pain, as there can be many points of failure. Are inputs too
+greedy? Are outputs not being created? Does it exist at all? To help with this, you can now view
+task information by running [`moon task <target>`](/docs/commands/task).
+
+```shell
+$ moon task app:build
+```
+
+This command will display _resolved_ information, including inherited settings, and path resolved
+inputs and outputs. Here's an example:
+
+```
+RUNTIME:BUILD
+
+ID: build
+Project: runtime
+Platform: node
+Type: build
+
+PROCESS
+
+Command: packemon build --addFiles --addExports --declaration
+Environment variables:
+ - NODE_ENV = production
+Working directory: /Projects/moon/packages/runtime
+Runs dependencies: Concurrently
+Runs in CI: Yes
+
+DEPENDS ON
+
+ - types:build
+
+INPUTS
+
+ - .moon/*.yml
+ - packages/runtime/src/**/*
+ - packages/runtime/tsconfig.*.json
+ - packages/runtime/types/**/*
+ - packages/runtime/package.json
+ - packages/runtime/tsconfig.json
+ - tsconfig.options.json
+
+OUTPUTS
+
+ - packages/runtime/cjs
+```
+
+## Other changes
+
+View the [official release](https://github.com/moonrepo/moon/releases/tag/v1.1.0) for a full list of
+changes.
+
+- Support pnpm v8's new lockfile format.
+- Better handling for task's that execute the `moon` binary.
+- Updated `noop` tasks to be cacheable, so that they can be used for cache hit early returns.

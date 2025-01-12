@@ -1,11 +1,8 @@
 ---
 source: crates/cli/tests/run_test.rs
-assertion_line: 69
-expression: get_assert_output(&assert)
+expression: assert.output()
 ---
+Error: action_graph::cycle_detected
 
- ERROR 
-
-A dependency cycle has been detected for RunTarget(depsA:taskCycle) → RunTarget(depsB:taskCycle) → RunTarget(depsC:taskCycle).
-
-
+  × A dependency cycle has been detected for RunTask(depsC:taskCycle) →
+  │ RunTask(depsA:taskCycle) → RunTask(depsB:taskCycle).

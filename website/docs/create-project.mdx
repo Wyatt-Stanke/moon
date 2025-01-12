@@ -6,6 +6,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import HeaderLabel from '@site/src/components/Docs/HeaderLabel';
 import NextSteps from '@site/src/components/NextSteps';
+import LangPartials from '@site/src/components/LangPartials';
 
 <HeaderLabel text="3 min" />
 
@@ -20,13 +21,13 @@ mapped in the [`projects`](./config/workspace#projects) setting found in
 [`.moon/workspace.yml`](./config/workspace). When mapping a project, we require a unique name for
 the project, and a project source location (path relative from the workspace root).
 
-Let's say we have a frontend web application called "client", and a backend Node.js application
-called "server", our `projects` setting would look like the following.
+Let's say we have a frontend web application called "client", and a backend application called
+"server", our `projects` setting would look like the following.
 
 ```yaml title=".moon/workspace.yml"
 projects:
-	client: 'apps/client'
-	server: 'apps/server'
+  client: 'apps/client'
+  server: 'apps/server'
 ```
 
 We can now run [`moon project client`](./commands/project) and
@@ -40,20 +41,13 @@ to not manually curate the projects list!
 
 :::
 
-:::info
-
-Want to use `package.json` names? Enable the
-[`node.aliasPackageNames`](./config/workspace#aliaspackagenames) setting!
-
-:::
-
 ## Configuring a project
 
 A project can be configured in 1 of 2 ways:
 
-- Through the [`.moon/project.yml`](./config/global-project) config file, which defines file groups
-  and tasks that are inherited by _all_ projects within the workspace. Perfect for standardizing
-  common tasks like linting, type-checking, and code formatting.
+- Through the [`.moon/tasks.yml`](./config/tasks) config file, which defines file groups and tasks
+  that are inherited by _all_ projects within the workspace. Perfect for standardizing common tasks
+  like linting, typechecking, and code formatting.
 - Through the [`moon.yml`](./config/project) config file, found at the root of each project, which
   defines files groups, tasks, dependencies, and more that are unique to that project.
 
@@ -76,20 +70,12 @@ following:
 
 ```yaml title="apps/client/moon.yml"
 tasks:
-	build:
-		command:
-			- 'webpack'
-			- 'build'
-			- '--mode'
-			- 'production'
-			- '--entry'
-			- 'src/index.tsx'
-			- '--output-path'
-			- 'build'
-		inputs:
-			- 'src/**/*'
-		outputs:
-			- 'build'
+  build:
+    command: 'vite dev'
+    inputs:
+      - 'src/**/*'
+    outputs:
+      - 'dist'
 ```
 
 </TabItem>
@@ -97,27 +83,27 @@ tasks:
 
 ```yaml title="apps/server/moon.yml"
 tasks:
-	build:
-		command: 'babel src --out-dir build'
-		inputs:
-			- 'src/**/*'
-		outputs:
-			- 'build'
+  build:
+    command: 'babel src --out-dir build'
+    inputs:
+      - 'src/**/*'
+    outputs:
+      - 'build'
 ```
 
 </TabItem>
 <TabItem value="inherit">
 
-```yaml title=".moon/project.yml"
+```yaml title=".moon/tasks.yml"
 tasks:
-	format:
-		command: 'prettier --write .'
-	lint:
-		command: 'eslint --no-error-on-unmatched-pattern .'
-	test:
-		command: 'jest --passWithNoTests .'
-	typecheck:
-		command: 'tsc --build'
+  format:
+    command: 'prettier --check .'
+  lint:
+    command: 'eslint --no-error-on-unmatched-pattern .'
+  test:
+    command: 'jest --passWithNoTests .'
+  typecheck:
+    command: 'tsc --build'
 ```
 
 </TabItem>
@@ -138,7 +124,7 @@ Furthermore, we also support the [`type`](./config/project#type) and
 [`language`](./config/project#language) settings for a more granular breakdown of what exists in the
 repository.
 
-```yaml title="moon.yml"
+```yaml title="<project>/moon.yml"
 type: 'tool'
 language: 'typescript'
 
@@ -154,7 +140,7 @@ project:
 
 <NextSteps
   links={[
-    { icon: 'new-task', label: 'Create a task', url: './create-task' },
+    { icon: 'toolchain', label: 'Setup toolchain', url: './setup-toolchain' },
     {
       icon: 'workspace-config',
       label: (
@@ -168,10 +154,10 @@ project:
       icon: 'project-config-global',
       label: (
         <span>
-          Configure <code>.moon/project.yml</code> further
+          Configure <code>.moon/tasks.yml</code> further
         </span>
       ),
-      url: './config/global-project',
+      url: './config/tasks',
     },
     {
       icon: 'project-config',
