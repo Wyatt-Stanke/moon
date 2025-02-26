@@ -125,7 +125,8 @@ blockquote {
 }
 
 .navbar__logo {
-	margin-top: -3px;
+	margin-bottom: -6px;
+	width: 125px;
 }
 
 .navbar__items > div {
@@ -149,6 +150,10 @@ blockquote {
 	margin-top: var(--moon-padding-1);
 }
 
+.menu__list hr {
+	margin: 0;
+}
+
 @media (min-width: 997px) {
 	html .menu {
 		padding: var(--moon-padding-1_5);
@@ -167,4 +172,12 @@ ul ul {
 
 .tsd-index-list li + li {
 	margin-top: 0;
+}
+
+svg {
+	display: block;
+}
+
+pre .table {
+	display: inline;
 }

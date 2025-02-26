@@ -1,0 +1,164 @@
+---
+slug: moon-v1.28
+title: moon v1.28 - Task presets, OS tasks, meta tokens, and more
+authors: [milesj]
+tags: [os, task, meta, token, toolchain, preset]
+image: ./img/moon/v1.28.png
+---
+
+In this release, we've focused on developer experience and quality-of-life improvements.
+
+<!--truncate-->
+
+## New task presets
+
+For the longest time, moon has supported the [`local`](/docs/config/project#local) setting for
+tasks. This setting was added early on to reduce the amount of options configuration necessary for
+tasks that "should only run locally". However, after years of supporting this setting, we've
+discovered a few short-comings with it:
+
+- The name is confusing. It's not apparent what "local" really means for newcomers.
+- This setting also changes non-local related options, like `persistent` and `cache`, which isn't
+  apparent to the user.
+- Setting the value to `false` doesn't inverse the options values. For example, enabling `runInCI`.
+
+At this point we thought to ourselves "how can we improve this experience?". Instead of reworking
+`local`, we've opted to introduce a new task setting called [`preset`](/docs/config/project#preset),
+which configures a collection of task options, and deprecate the `local` setting. Presets are a much
+better pattern, as it allows us to support multiple presets, and uniquely name our presets. For
+example, old `local` tasks can be rewritten as such:
+
+```yaml title="moon.yml"
+# Before
+tasks:
+  start:
+    command: 'vite dev'
+    local: true
+
+# After
+tasks:
+  start:
+    command: 'vite dev'
+    preset: 'server'
+```
+
+To start, we're introducing 2 presets: `server` and `watcher`. Check out the
+[documentation for more information](/docs/config/project#preset) on what these presets configure!
+If you have ideas for other presets, we would love to hear them.
+
+## New OS specific tasks
+
+When moon was originally designed, it was meant to be a very simple but easily configurable task
+runner. But since then, moon has grown drastically, and so has the requirements of its users. One
+such request was being able to define tasks that only run for certain operating systems.
+
+This wasn't possible before; but is now thanks to the new
+[`os` task option](/docs/config/project#os). This option can be configured with "linux", "macos", or
+"windows" to target those specific systems, and can be a single value, or list of values.
+
+```yaml title="moon.yml"
+tasks:
+  build-linux:
+    command: 'cargo build --target x86_64-unknown-linux-gnu'
+    options:
+      os: 'linux'
+  build-macos:
+    command: 'cargo build --target x86_64-apple-darwin'
+    options:
+      os: 'macos'
+  build-windows:
+    command: 'cargo build --target x86_64-pc-windows-msvc'
+    options:
+      os: 'windows'
+```
+
+When a task is ran on a non-compatible system, it will be converted to a no-operation task, so that
+dependency chains still resolve correctly.
+
+> In the future, we will look into supporting system architecture as well.
+
+## New `@meta` token function
+
+In our last release, we introduced the [`project.metadata`](/docs/config/project#metadata-1) setting
+as a means for consumers to define their own metadata. This is great but it provided no other
+benefit, as it required consumers to open up config files to discover this metadata, or consumers to
+write custom abstractions/tooling. We want to improve the integration of this information within
+moon, so to start, we're introducing a new token function [`@meta(key)`](/docs/concepts/token#meta).
+
+The [`@meta(key)`](/docs/concepts/token#meta) token function can be used to access project metadata
+from both the [`project`](/docs/config/project#project) and
+[`project.metadata`](/docs/config/project#metadata-1) settings. The former values will be used
+as-is, while the latter values will be JSON stringified (since consumers can define anything).
+
+With this new token, our task composition has grown even deeper. For example, you can define a task
+at the top-level that a project inherits, and then define metadata within that project for the task!
+With that said, this is more of a stopgap solution until we support true variables within
+configuration.
+
+```yaml title=".moon/tasks.yml"
+tasks:
+  build:
+    script: 'compile --label @meta(name) --compress @meta(compression)'
+```
+
+```yaml title="<project>/moon.yml"
+project:
+  name: 'example'
+  metadata:
+    compression: 9
+```
+
+And lastly, while we're on the topic of tokens, we're also introducing `$projectName`,
+`$projectChannel`, and `$projectOwner` token variables, as an easier alternative solution.
+
+## New `disallowRunInCiMismatch` experiment
+
+Have you ever ran [`moon ci`](/docs/commands/ci) in CI and encountered a scenario where tasks that
+_should_ have run didn't run? Or the dependency of a task never runs causing the dependent to fail?
+If so, this may apply to you!
+
+This scenario is most likely caused by an invalid relationship where the dependent is
+[`runInCI`](/docs/config/project#runinci) enabled, but the dependency is
+[`runInCI`](/docs/config/project#runinci) disabled. For example:
+
+```yml title="moon.yml"
+tasks:
+  build:
+    # ...
+    options:
+      runInCI: false
+
+  analyze:
+    # ...
+    deps: ['build']
+    options:
+      runInCI: true
+```
+
+Because `build` is disabled, its outputs may not be created. Additionally, if `build` is affected by
+touched files, the `analyze` task will not run automatically unless it was also affected. We try our
+best to accommodate these scenarios and "detect" when things should run or not, but it's fallible,
+as there's many ways that tasks can relate to each other.
+
+To try and remedy this going forward, we're introducing the new `disallowRunInCiMismatch` experiment
+that will _hard error_ if an invalid relationship is configured. We want to try and capture how
+often users are configuring this, whether intentionally or accidentally. If the error becomes a
+blocker, the experiment can be disabled as so:
+
+```yaml title=".moon/workspace.yml"
+experiments:
+  disallowRunInCiMismatch: false
+```
+
+## Other changes
+
+View the [official release](https://github.com/moonrepo/moon/releases/tag/v1.28.0) for a full list
+of changes.
+
+- We've sunset the CI insights feature in moonbase. We will no longer be tracking CI run history.
+  This is a retroactive change that applies to all moon versions.
+- Added `codeowners.requiredApprovals` setting to `.moon/workspace.yml`, that will apply
+  requirements to all paths.
+- Updated the terminal checkpoint (4 squares) colors to better reflect their state.
+- Updated `MOON_TOOLCHAIN_FORCE_GLOBALS` to support filtering by tool IDs, instead of applying to
+  everything.

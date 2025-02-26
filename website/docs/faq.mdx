@@ -7,7 +7,7 @@ title: FAQ
 ### Where did the name "moon" come from?
 
 The first incarnation of the name was a misspelling of monorepo (= moonrepo). This is where the
-domain moonrepo.dev came from, and our official company, moonrepo LLC.
+domain moonrepo.dev came from, and our official company, moonrepo, Inc.
 
 However, moonrepo is quite a long name with many syllables, and as someone who prefers short 1
 syllable words, moon was perfect. The word moon also has great symmetry, as you can see in our logo!
@@ -22,14 +22,11 @@ acronym, as it embraces what moon is trying to solve:
 - **O**rchestrate tasks as efficiently as possible.
 - **N**otify developers and systems about important events.
 
-### Will moon support other languages besides JavaScript?
+### Will moon support other languages?
 
-Yes! Although we're focusing right now on JavaScript (and TypeScript, Node.js), we've designed moon
-to be language agnostic and easily pluggable in the future. If we're to guess which language would
-be next, it would most likely be Ruby to support React Native based applications.
-
-With that being said, for languages not supported in our toolchain, you can still execute them
-within at task by setting the [`type` to "system"](./config/project#type-1).
+Yes! Although we're focusing right now on the web ecosystem (Node.js, Rust, Go, PHP, Python, etc),
+we've designed moon to be language agnostic and easily pluggable in the future. View our
+[supported languages for more information](/docs#supported-languages).
 
 ### Will moon support continuous deployment?
 
@@ -61,10 +58,10 @@ and provides us with the following:
   not language specific semantics. This field also easily populates the dependency/project graphs.
 - For JavaScript projects:
   - `package.json` dependencies (via `dependsOn`) are kept in sync when
-    [`node.syncProjectWorkspaceDependencies`](./config/workspace#syncprojectworkspacedependencies)
+    [`node.syncProjectWorkspaceDependencies`](./config/toolchain#syncprojectworkspacedependencies)
     is enabled.
   - `tsconfig.json` project references (via `dependsOn`) are kept in sync when
-    [`typescript.syncProjectReferences`](./config/workspace#syncprojectreferences) is enabled.
+    [`typescript.syncProjectReferences`](./config/toolchain#syncprojectreferences) is enabled.
 
 By using moon as the source of truth, we can ensure a healthy repository, by accurately keeping
 everything in sync, and modifying project/language configuration to operate effectively.
@@ -77,101 +74,108 @@ utilizing language specific functionality, instead of migrating entirely to moon
 
 :::
 
-## Action runner
+### How to stop moon formatting JSON and YAML files?
 
-### What is `SetupNodeTool`, `InstallNodeDeps`, `RunTarget`, etc?
+To ensure a healthy repository state, moon constantly modifies JSON and YAML files, specifically
+`package.json` and `tsconfig.json`. This may result in a different formatting style in regards to
+indentation. While there is no way to stop or turn off this functionality, we respect
+[EditorConfig](https://editorconfig.org/) during this process.
 
-When we run a [task](./concepts/task), we generate a dependency graph of nodes, known as actions.
-These labels are the actions in the graph, and break down as follows:
+Create a root `.editorconfig` file to enforce a consistent syntax.
 
-- `SetupNodeTool` - Sets up the Node.js [toolchain](./concepts/toolchain).
-- `SetupSystemTool` - Currently a no operation.
-- `InstallNodeDeps` - Installs Node.js dependencies (`node_modules`) in the workspace root.
-- `InstallSystemDeps` - Currently a no operation.
-- `SyncNodeProject` - When a project's [`language`](./config/project#language) is "javascript" or
-  "typescript". Will sync `package.json` dependencies and `tsconfig.json` project references.
-- `SyncSystemProject` - Currently a no operation. Is created when a project's
-  [`language`](./config/project#language) does not require syncing.
-- `RunTarget` - The common action. This runs the target task within a project.
+```ini title=".editorconfig"
+[*.{json,yaml,yml}]
+indent_style = space
+indent_size = 4
+```
 
 ## Projects & tasks
 
 ### How to pipe or redirect tasks?
 
-Piping (`|`) or redirecting (`>`) the output of a task (maybe to another task), whether via stdin or
-through `inputs`, is currently not possible. However, you _could_ execute a custom bash script that
-handles this for you, for example:
+Piping (`|`) or redirecting (`>`) the output of one moon task to another moon task, whether via
+stdin or through `inputs`, is not possible within our pipeline (task runner) directly.
+
+However, we do support this functionality on the command line, or within a task itself, using the
+[`script`](./config/project#script) setting.
+
+```yaml title="moon.yml"
+tasks:
+  pipe:
+    script: 'gen-json | jq ...'
+```
+
+Alternativaly, you can wrap this script in something like a Bash file, and execute that instead.
 
 ```bash title="scripts/pipe.sh"
 #!/usr/bin/env bash
-moon project foo --json | jq ...
+gen-json | jq ...
 ```
 
 ```yaml title="moon.yml"
 tasks:
-	pipe:
-		command: 'bash ./scripts/pipe.sh'
-		type: 'system'
+  pipe:
+    command: 'bash ./scripts/pipe.sh'
 ```
 
 ### How to run multiple commands within a task?
 
-A task in moon is a single command, representing its inputs and outputs, and as such, cannot run
-multiple commands with `&&` within a single task declaration. However, we do suggest the following
-alternatives:
-
-- Create a task for each command, and link them as dependencies with
-  [`deps`](./config/project#deps). This allows for each command to be incrementally cached (when
-  enabled).
-- Create a task for each command, and run them concurrently with [`moon run`](./commands/run).
-- Wrap all commands in an external file, and execute that file instead. Refer to the
-  [piping question](#how-to-pipe-or-redirect-tasks) above for an example.
-
-### How to run tasks in a shell?
-
-By default, all tasks _do not_ run in a shell, as we interact with and execute a tool's binary
-directly within the toolchain. We also provide no built-in support for shells, but that doesn't mean
-you can't use them. Since tasks can execute any commands available on your system, you can implement
-the shell manually like so:
+Only [`script`](./config/project#script) based tasks can run multiple commands via `&&` or `;`
+syntax. This is possible as we execute the entire script within a shell, and not directly with the
+toolchain.
 
 ```yaml title="moon.yml"
 tasks:
-  bash:
+  multiple:
+    script: 'mkdir test && cd test && do-something'
+```
+
+### How to run tasks in a shell?
+
+By default, all tasks run in a shell, based on the task's [`shell`](./config/project#shell) option,
+as demonstrated below:
+
+```yaml title="moon.yml"
+tasks:
+  # Runs in a shell
+  global:
+    command: 'some-command-on-path'
+
+  # Custom shells
+  unix:
     command: 'bash -c some-command'
-    type: 'system'
-  # Windows
-  cmd:
-    command: 'cmd.exe /d /s /c some-command'
-    type: 'system'
-  pwsh:
+    options:
+      shell: false
+  windows:
     command: 'pwsh.exe -c some-command'
-    type: 'system'
+    options:
+      shell: false
 ```
 
 ### Can we run other languages?
 
-Yes! Although our toolchain only supports JavaScript/Node.js at this time, you can still run other
-languages within tasks by setting their [`type`](./config/project#type-1) to "system". System tasks
-are an escape hatch that will use any command available on the current machine.
+Yes! Although our toolchain only supports a few languages at this time, you can still run other
+languages within tasks by setting their [`toolchain`](./config/project#toolchain) to "system".
+System tasks are an escape hatch that will use any command available on the current machine.
 
 ```yaml title="moon.yml"
 tasks:
   # Ruby
   lint:
     command: 'rubocop'
-    type: 'system'
+    toolchain: 'system'
   # PHP
   test:
     command: 'phpunit tests'
-    type: 'system'
+    toolchain: 'system'
 ```
 
 However, because these languages are not supported directly within our toolchain, they will not
 receive the benefits of the toolchain. Some of which are:
 
 - Automatic installation of the language. System tasks expect the command to already exist in the
-  environment, which requires the user to manually install.
-- Consistent language version across all machines.
+  environment, which requires the user to manually install them.
+- Consistent language and dependency manager versions across all machines.
 - Built-in cpu and heap profiling (language specific).
 - Automatic dependency installs when the lockfile changes.
 - And many more.
@@ -183,7 +187,7 @@ receive the benefits of the toolchain. Some of which are:
 We encourage everyone to define tasks in a [`moon.yml`](./config/project#tasks) file, as it allows
 for additional metadata like `inputs`, `outputs`, `options`, and more. However, if you'd like to
 keep using `package.json` scripts, enable the
-[`node.inferTasksFromScripts`](./config/workspace#infertasksfromscripts) setting.
+[`node.inferTasksFromScripts`](./config/toolchain#infertasksfromscripts) setting.
 
 View the [official documentation](./migrate-to-moon) for more information on this approach,
 including risks, disadvantages, and caveats.
@@ -197,3 +201,38 @@ the following popular tools:
 - [Yarn releases](https://yarnpkg.com/features/release-workflow) (requires >= v2)
 - [Changesets](https://github.com/changesets/changesets)
 - [Lerna](https://github.com/lerna/lerna)
+
+### Why is npm/pnpm/yarn install running twice when running a task?
+
+moon will automatically install dependencies in a project or in the workspace root (when using
+package workspaces) when the lockfile or `package.json` has been modified since the last time the
+install ran. If you are running a task and multiple installs are occurring (and it's causing
+issues), it can mean 1 of 2 things:
+
+- If you are using package workspaces, then one of the projects triggering the install is not listed
+  within the `workspaces` field in the root `package.json` (for npm and yarn), or in
+  `pnpm-workspace.yml` (for pnpm).
+- If the install is triggering in a non-JavaScript related project, then this project is incorrectly
+  listed as a package workspace.
+- If you don't want a package included in the workspace, but do want to install its dependencies,
+  then it'll need its own lockfile.
+
+## Troubleshooting
+
+### How to resolve the "version 'GLIBC_X.XX' not found" error?
+
+This is typically caused by running moon in an old environment, like Ubuntu 18, and the minimum
+required libc doesn't exist or is too old. Since moon is Rust based, we're unable to support all
+environments and versions perpetually, and will only support relatively modern environments.
+
+There's not an easy fix to this problem, but there are a few potential solutions, from easiest to
+hardest:
+
+- Run moon in a Docker container/image that has the correct environment and libs. For example, the
+  `node:latest` image.
+- Upgrade the environment to a newer one. For example, Ubuntu 18 -> 22.
+- Try and install a newer libc
+  ([more information](https://stackoverflow.com/questions/72513993/how-install-glibc-2-29-or-higher-in-ubuntu-18-04)).
+
+For more information on this problem as a whole,
+[refer to this in-depth article](https://kobzol.github.io/rust/ci/2021/05/07/building-rust-binaries-in-ci-that-work-with-older-glibc.html).

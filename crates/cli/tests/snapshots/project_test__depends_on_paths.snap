@@ -1,28 +1,30 @@
 ---
 source: crates/cli/tests/project_test.rs
-assertion_line: 80
-expression: get_assert_output(&assert)
+expression: assert.output_standardized()
 ---
-
  FOO 
 
-ID: foo
+Project: foo
 Source: deps/foo
-Language: JavaScript
-Type: Application
+Toolchain: node
+Language: javascript
+Stack: unknown
+Type: application
+Tags: react
 
  DEPENDS ON 
 
- - bar (explicit, production)
- - baz (explicit, production)
+  - bar (explicit, production)
+  - baz (explicit, production)
+
+ INHERITS FROM 
+
+  - .moon/tasks.yml
 
  FILE GROUPS 
 
 sources:
- - src/**/*
- - types/**/*
+  - deps/foo/src/**/*
+  - deps/foo/types/**/*
 tests:
- - tests/**/*
-
-
-
+  - deps/foo/tests/**/*

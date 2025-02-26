@@ -1,5 +1,5 @@
 language: javascript
 
-workspace:
+toolchain:
   node:
-    version: '14.0.0'
+    version: '19.0.0'

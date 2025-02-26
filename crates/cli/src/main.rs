@@ -1,113 +1,212 @@
-use moon_cli::{run_cli, BIN_NAME};
-use moon_constants::CONFIG_DIRNAME;
-use moon_lang_node::NODE;
+mod lookup;
+
+use clap::Parser;
+use lookup::*;
+use mimalloc::MiMalloc;
+use moon_app::commands::docker::DockerCommands;
+use moon_app::commands::migrate::MigrateCommands;
+use moon_app::commands::node::NodeCommands;
+use moon_app::commands::query::QueryCommands;
+use moon_app::commands::sync::SyncCommands;
+use moon_app::{commands, systems::bootstrap, Cli, CliSession, Commands};
+use starbase::diagnostics::IntoDiagnostic;
+use starbase::tracing::TracingOptions;
+use starbase::{App, MainResult};
+use starbase_styles::color;
+use starbase_utils::env::bool_var;
+use starbase_utils::{dirs, string_vec};
 use std::env;
-use std::path::{Path, PathBuf};
-use tokio::process::Command;
+use std::process::{Command, ExitCode};
+use tracing::debug;
 
-/// Check whether this binary has been installed globally or not.
-/// If we encounter an error, simply abort early instead of failing.
-async fn is_globally_installed() -> bool {
-    let exe_path = match env::current_exe() {
-        Ok(path) => path,
-        Err(_) => return false,
-    };
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
-    // Global installs happen *outside* of moon's toolchain,
-    // so we simply assume that they have and are using npm
-    // in their environment.
-    let output = match Command::new("npm")
-        .args(["config", "get", "prefix"])
-        .output()
-        .await
-    {
-        Ok(out) => out,
-        Err(_) => return false,
-    };
+fn get_version() -> String {
+    let version = env!("CARGO_PKG_VERSION");
 
-    // If our executable path starts with the global dir,
-    // then we must have been installed globally!
-    let global_dir = PathBuf::from(
-        String::from_utf8(output.stdout.to_vec())
-            .unwrap_or_default()
-            .trim(),
-    );
+    env::set_var("MOON_VERSION", version);
 
-    exe_path.starts_with(global_dir)
+    version.to_owned()
 }
 
-fn find_workspace_root(dir: &Path) -> Option<PathBuf> {
-    let findable = dir.join(CONFIG_DIRNAME);
+fn get_tracing_modules() -> Vec<String> {
+    let mut modules = string_vec![
+        "moon", "proto", // "schematic",
+        "starbase",
+        "warpgate",
+        // Remote testing
+        // "h2",
+        // "hyper",
+        // "tonic",
+        // "rustls",
+    ];
 
-    if findable.exists() {
-        return Some(dir.to_path_buf());
+    if bool_var("MOON_DEBUG_WASM") {
+        modules.push("extism".into());
+    } else {
+        modules.push("extism::pdk".into());
     }
 
-    match dir.parent() {
-        Some(parent_dir) => find_workspace_root(parent_dir),
-        None => None,
+    if bool_var("MOON_DEBUG_REMOTE") {
+        modules.push("tonic".into());
     }
+
+    modules
 }
 
-async fn run_bin(bin_path: &Path, current_dir: &Path) -> Result<(), std::io::Error> {
-    // Remove the binary path from the current args list
-    let args = env::args()
-        .enumerate()
-        .filter(|(i, arg)| {
-            if *i == 0 {
-                !arg.ends_with(BIN_NAME)
-            } else {
-                true
-            }
-        })
-        .map(|(_, arg)| arg)
-        .collect::<Vec<String>>();
+#[cfg(unix)]
+fn exec_local_bin(mut command: Command) -> std::io::Result<u8> {
+    use std::os::unix::process::CommandExt;
 
-    // Execute the found moon binary with the current filtered args
-    Command::new(bin_path)
-        .args(args)
-        .current_dir(current_dir)
-        .spawn()?
-        .wait()
-        .await?;
+    Err(command.exec())
+}
 
-    Ok(())
+#[cfg(windows)]
+fn exec_local_bin(mut command: Command) -> std::io::Result<u8> {
+    let result = command.spawn()?.wait()?;
+
+    if !result.success() {
+        return Ok(result.code().unwrap_or(1) as u8);
+    }
+
+    Ok(0)
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> MainResult {
+    sigpipe::reset();
     // console_subscriber::init();
 
-    let mut run = true;
+    // Detect info about the current process
+    let version = get_version();
+    let (args, has_executable) = bootstrap::gather_args();
+
+    let cli = Cli::parse_from(&args);
+    cli.setup_env_vars();
+
+    // Setup diagnostics and tracing
+    let app = App::default();
+    app.setup_diagnostics();
+
+    let _guard = app.setup_tracing(TracingOptions {
+        dump_trace: cli.dump,
+        filter_modules: get_tracing_modules(),
+        intercept_log: true,
+        log_env: "MOON_APP_LOG".into(), // Don't conflict with proto
+        log_file: cli.log_file.clone(),
+        ..TracingOptions::default()
+    });
+
+    if let Ok(exe) = env::current_exe() {
+        debug!(
+            args = ?args,
+            "Running moon v{} (with {})",
+            version,
+            color::path(exe),
+        );
+    } else {
+        debug!(args = ?args, "Running moon v{}", version);
+    }
 
     // Detect if we've been installed globally
-    if let Ok(current_dir) = env::current_dir() {
-        if is_globally_installed().await {
-            // If so, find the workspace root so we can locate the
-            // locally installed `moon` binary in node modules
-            if let Some(workspace_root) = find_workspace_root(&current_dir) {
-                let moon_bin = workspace_root
-                    .join(NODE.vendor_dir)
-                    .join("@moonrepo")
-                    .join("cli")
-                    .join(BIN_NAME);
+    if let (Some(home_dir), Ok(current_dir)) = (dirs::home_dir(), env::current_dir()) {
+        if is_globally_installed(&home_dir) {
+            if let Some(local_bin) = has_locally_installed(&home_dir, &current_dir) {
+                debug!("Binary is running from a global path, but we found a local binary to use instead");
+                debug!("Will now execute the local binary and replace this running process");
 
-                // The binary exists! So let's run that one to ensure
-                // we're running the version pinned in `package.json`,
-                // instead of this global one!
-                if moon_bin.exists() {
-                    run = false;
+                let start_index = if has_executable { 1 } else { 0 };
 
-                    run_bin(&moon_bin, &current_dir)
-                        .await
-                        .expect("Failed to run moon binary");
-                }
+                let mut command = Command::new(local_bin);
+                command.args(&args[start_index..]);
+                command.current_dir(current_dir);
+
+                let exit_code = exec_local_bin(command).into_diagnostic()?;
+
+                return Ok(ExitCode::from(exit_code));
             }
         }
     }
 
     // Otherwise just run the CLI
-    if run {
-        run_cli().await
-    }
+    let exit_code = app
+        .run(CliSession::new(cli, version), |session| async {
+            match session.cli.command.clone() {
+                Commands::ActionGraph(args) => {
+                    commands::graph::action::action_graph(session, args).await
+                }
+                Commands::Bin(args) => commands::bin::bin(session, args).await,
+                Commands::Ci(args) => commands::ci::ci(session, args).await,
+                Commands::Check(args) => commands::check::check(session, args).await,
+                Commands::Clean(args) => commands::clean::clean(session, args).await,
+                Commands::Completions(args) => {
+                    commands::completions::completions(session, args).await
+                }
+                Commands::Docker { command } => match command {
+                    DockerCommands::File(args) => commands::docker::file(session, args).await,
+                    DockerCommands::Prune => commands::docker::prune(session).await,
+                    DockerCommands::Scaffold(args) => {
+                        commands::docker::scaffold(session, args).await
+                    }
+                    DockerCommands::Setup => commands::docker::setup(session).await,
+                },
+                Commands::Ext(args) => commands::ext::ext(session, args).await,
+                Commands::Generate(args) => commands::generate::generate(session, args).await,
+                Commands::Init(args) => commands::init::init(session, args).await,
+                Commands::Migrate {
+                    command,
+                    skip_touched_files_check,
+                } => match command {
+                    MigrateCommands::FromPackageJson(mut args) => {
+                        args.skip_touched_files_check = skip_touched_files_check;
+                        commands::migrate::from_package_json(session, args).await
+                    }
+                    MigrateCommands::FromTurborepo => commands::migrate::from_turborepo().await,
+                },
+                Commands::Node { command } => match command {
+                    NodeCommands::RunScript(args) => {
+                        commands::node::run_script(session, args).await
+                    }
+                },
+                Commands::Project(args) => commands::project::project(session, args).await,
+                Commands::ProjectGraph(args) => {
+                    commands::graph::project::project_graph(session, args).await
+                }
+                Commands::Query { command } => match command {
+                    QueryCommands::Hash(args) => commands::query::hash(session, args).await,
+                    QueryCommands::HashDiff(args) => {
+                        commands::query::hash_diff(session, args).await
+                    }
+                    QueryCommands::Projects(args) => commands::query::projects(session, args).await,
+                    QueryCommands::Tasks(args) => commands::query::tasks(session, args).await,
+                    QueryCommands::TouchedFiles(args) => {
+                        commands::query::touched_files(session, args).await
+                    }
+                },
+                Commands::Run(args) => commands::run::run(session, args).await,
+                Commands::Setup => commands::setup::setup(session).await,
+                Commands::Sync { command } => match command {
+                    Some(SyncCommands::Codeowners(args)) => {
+                        commands::syncs::codeowners::sync(session, args).await
+                    }
+                    Some(SyncCommands::ConfigSchemas(args)) => {
+                        commands::syncs::config_schemas::sync(session, args).await
+                    }
+                    Some(SyncCommands::Hooks(args)) => {
+                        commands::syncs::hooks::sync(session, args).await
+                    }
+                    Some(SyncCommands::Projects) => commands::syncs::projects::sync(session).await,
+                    None => commands::sync::sync(session).await,
+                },
+                Commands::Task(args) => commands::task::task(session, args).await,
+                Commands::TaskGraph(args) => commands::graph::task::task_graph(session, args).await,
+                Commands::Teardown => commands::teardown::teardown().await,
+                Commands::Templates(args) => commands::templates::templates(session, args).await,
+                Commands::Upgrade => commands::upgrade::upgrade(session).await,
+            }
+        })
+        .await?;
+
+    Ok(ExitCode::from(exit_code))
 }

@@ -1,9 +1,9 @@
 tasks:
   standard:
-    type: system
+    platform: system
     command: newcmd
     deps:
-      - b:standard
+      - buildB:build
     args:
       - --b
     inputs:

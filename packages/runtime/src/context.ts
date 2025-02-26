@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { json, Path } from '@boost/common';
-import { Project } from '@moonrepo/types';
+import { type Project } from '@moonrepo/types';
 
 export interface RuntimeContext {
 	project: Project;
@@ -12,11 +12,13 @@ export interface RuntimeContext {
 export async function getContext(): Promise<RuntimeContext> {
 	const { env } = process;
 
-	if (!env.MOON_PROJECT_RUNFILE) {
+	if (!env.MOON_PROJECT_SNAPSHOT) {
 		throw new Error('Attempting to access moon context outside of a run process.');
 	}
 
-	const project = json.parse<Project>(await fs.promises.readFile(env.MOON_PROJECT_RUNFILE, 'utf8'));
+	const project = json.parse<Project>(
+		await fs.promises.readFile(env.MOON_PROJECT_SNAPSHOT, 'utf8'),
+	);
 
 	return {
 		project,

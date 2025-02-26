@@ -1,9 +1,10 @@
 ---
 source: crates/cli/tests/run_test.rs
-assertion_line: 229
-expression: get_assert_output(&assert)
+expression: assert.output()
 ---
+Error: target::run_context::no_self_scope
 
- ERROR  Project self scope (~:) is not supported in run contexts.
+  × Self scope (~:) is not supported in run contexts.
+
 
 

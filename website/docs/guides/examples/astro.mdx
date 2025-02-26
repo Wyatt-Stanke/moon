@@ -5,10 +5,9 @@ sidebar_label: Astro
 
 import AddDepsTabs from '@site/src/components/AddDepsTabs';
 import CreateDepTabs from '@site/src/components/CreateDepTabs';
+import HeadingApiLink from '@site/src/components/Docs/HeadingApiLink';
 
-> Astro has been prototyped in our
-> [examples repository](https://github.com/moonrepo/examples/tree/master/apps/astro-app), check it
-> out!
+<HeadingApiLink to="https://github.com/moonrepo/examples/tree/master/apps/astro-app" />
 
 In this guide, you'll learn how to integrate [Astro](https://docs.astro.build).
 
@@ -24,52 +23,22 @@ cd apps && npm create astro@latest
 Since Astro is per-project, the associated moon tasks should be defined in each project's
 [`moon.yml`](../../config/project) file.
 
+:::tip
+
+We suggest inheriting Astro tasks from the
+[official moon configuration preset](https://github.com/moonrepo/moon-configs/tree/master/javascript/astro).
+
+:::
+
 ```yaml title="<project>/moon.yml"
-fileGroups:
-	astro:
-		- 'src/**/*'
-		- 'astro.config.*'
+# Inherit tasks from the `astro` preset
+# https://github.com/moonrepo/moon-configs
+tags: ['astro']
 
-tasks:
-	astro:
-		command: 'astro'
-		local: true
-
-	# Development server
-	dev:
-		command: 'astro dev'
-		inputs:
-			- '@group(astro)'
-		local: true
-
-	# Production build
-	build:
-		command: 'astro build'
-		inputs:
-			- '@group(astro)'
-		outputs:
-			- 'dist'
-
-	# Check .astro files
-	check:
-		command: 'astro check'
-		inputs:
-			- '@group(astro)'
-		deps:
-			- '~:typecheck'
-
-	# Preview production build locally
-	preview:
-		command: 'astro preview'
-		inputs:
-			- '@group(astro)'
-		deps:
-			- '~:build'
-		local: true
-
-workspace:
-	# Disable project references
-	typescript: false
+# Disable project references
+toolchain:
+  typescript:
+    syncProjectReferences: false
 ```
 
 ### ESLint integration
@@ -109,10 +78,10 @@ or by adding it to the top-level entirely.
 
 ```yaml title="<project>/moon.yml"
 tasks:
-	lint:
-		args:
-			- '--ext'
-			- '.ts,.tsx,.astro'
+  lint:
+    args:
+      - '--ext'
+      - '.ts,.tsx,.astro'
 ```
 
 ### Prettier integration

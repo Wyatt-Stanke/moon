@@ -1,31 +1,37 @@
 # @moonrepo/cli
 
-The official CLI for [moon](https://moonrepo.dev), a build system and repo management tool for the
-JavaScript ecosystem, written in Rust!
+The official CLI for [moon](https://moonrepo.dev), a task runner and repo management tool for the
+web ecosystem, written in Rust! Supports JavaScript, TypeScript, Bash, and much more!
 
 - [Documentation](https://moonrepo.dev/docs)
 - [Getting started](https://moonrepo.dev/docs/install)
-
-## Requirements
-
-- Node.js >= 14.15
+- [Feature comparison](https://moonrepo.dev/docs/comparison)
+- [FAQ](https://moonrepo.dev/docs/faq)
 
 ## Installation
 
-moon can be installed with npm, pnpm, or yarn.
+moon can be installed with bash:
 
-```bash
-# Install the dependency
+```shell
+curl -fsSL https://moonrepo.dev/install/moon.sh | bash
+```
+
+Or with npm, pnpm, or yarn.
+
+```shell
 yarn add --dev @moonrepo/cli
+```
 
-# Initialize moon in the repo
-npx @moonrepo/cli init
+Once installed, initialize moon in your repository.
+
+```shell
+moon init
 ```
 
 ## Usage
 
 Once [projects](https://moonrepo.dev/docs/create-project) and
-[tasks](https://moonrepo.dev/docs/create-task) have been configured, you can run tasks with:
+[tasks](https://moonrepo.dev/docs/create-task) have been configured, tasks can be ran with:
 
 ```bash
 # Run `lint` in project `app`
@@ -77,13 +83,12 @@ and provide a first-class developer experience.
 - **Code generation** - Easily scaffold new applications, libraries, tooling, and more!
 - **Dependency workspaces** - Works alongside package manager workspaces so that projects have
   distinct dependency trees.
-- **Ownership metadata** - Declare an owner, maintainers, support channels, and more, for LDAP or
-  another integration.
+- **Code ownership** - Declare owners, maintainers, support channels, and more. Generate CODEOWNERS.
 
 #### Orchestration
 
 - **Dependency graph** - Generates a dependency graph to increase performance and reduce workloads.
-- **Action runner** - Executes actions in parallel and in order using a thread pool and our
+- **Action pipeline** - Executes actions in parallel and in order using a thread pool and our
   dependency graph.
 - **Action distribution** - Distributes actions across multiple machines to increase throughput.
 - **Incremental builds** - With our smart hashing, only rebuild projects that have been touched
@@ -93,6 +98,7 @@ and provide a first-class developer experience.
 
 - **Flakiness detection** - Reduce flaky builds with automatic retries and passthrough settings.
 - **Webhook events** - Receive a webhook for every event in the pipeline. Useful for metrics
-  gathering.
+  gathering and insights.
 - **Terminal notifications** - Receives notifications in your chosen terminal when builds are
   successful... or are not.
+- **Git hooks** - Manage Git hooks to enforce workflows and requirements for contributors.

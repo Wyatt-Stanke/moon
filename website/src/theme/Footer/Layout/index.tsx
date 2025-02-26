@@ -1,4 +1,3 @@
-import React from 'react';
 import { faDiscord, faGithub, faTwitter } from '@fortawesome/free-brands-svg-icons';
 import Icon from '../../../ui/iconography/Icon';
 import Heading from '../../../ui/typography/Heading';
@@ -6,7 +5,12 @@ import Link from '../../../ui/typography/Link';
 import Text from '../../../ui/typography/Text';
 import ContactForm from './ContactForm';
 
-export default function FooterLayout({ style, links, logo, copyright }) {
+export interface FooterLayoutProps {
+	copyright: NonNullable<React.ReactNode>;
+	links: React.ReactNode;
+}
+
+export default function FooterLayout({ links, copyright }: FooterLayoutProps) {
 	return (
 		<footer className="bg-gray-100 dark:bg-slate-600" aria-labelledby="footer-heading">
 			<h2 id="footer-heading" className="sr-only">
@@ -22,19 +26,17 @@ export default function FooterLayout({ style, links, logo, copyright }) {
 							Contact us
 						</Heading>
 
-						<Text variant="muted">Want to learn more about moon? Have questions?</Text>
-
 						<ContactForm />
 					</div>
 				</div>
 
 				<div className="mt-3 pt-3 md:mt-4 md:pt-4 border-0 border-t border-solid border-gray-200 dark:border-slate-400 flex items-center justify-between">
-					<Text variant="muted" size="sm" as="div">
+					<Text className="m-0" variant="muted" size="sm" as="div">
 						{copyright}
 					</Text>
 
 					<div className="flex space-x-2">
-						<Link href="https://github.com/moonrepo/moon">
+						<Link href="https://github.com/moonrepo">
 							<span className="sr-only">GitHub</span>
 							<Icon icon={faGithub} />
 						</Link>

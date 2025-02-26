@@ -1,15 +1,18 @@
 name: PR
 on:
   pull_request:
+env:
+  MOON_DEBUG: 'true'
+  PROTO_DEBUG: 'true'
 jobs:
   version:
     name: Version check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           cache: yarn
       - run: yarn install --immutable
@@ -17,10 +20,30 @@ jobs:
       - run: node ./scripts/version/checkBumpForRustChanges.mjs
       # This just tests package building, which release uses
       - run: bash ./scripts/release/buildPackages.sh
-  clibin:
-    name: CLI binary check
-    runs-on: ubuntu-latest
+  installer:
+    name: Install script check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+      fail-fast: false
     steps:
-      - uses: actions/checkout@v3
-      - run: bash ./scripts/checks/cliBinary.sh
-        shell: bash
+      - uses: actions/checkout@v4
+      # Unix
+      - run: bash ./website/static/install/moon.sh
+        if: ${{ runner.os != 'Windows' }}
+      - run: bash ./website/static/install/moon.sh 1.20.0
+        if: ${{ runner.os != 'Windows' }}
+      - run: bash ./website/static/install/proto.sh
+        if: ${{ runner.os != 'Windows' }}
+      - run: bash ./website/static/install/proto.sh 0.40.0
+        if: ${{ runner.os != 'Windows' }}
+      # Windows
+      - run: pwsh.exe ./website/static/install/moon.ps1
+        if: ${{ runner.os == 'Windows' }}
+      - run: pwsh.exe ./website/static/install/moon.ps1 1.20.0
+        if: ${{ runner.os == 'Windows' }}
+      - run: pwsh.exe ./website/static/install/proto.ps1
+        if: ${{ runner.os == 'Windows' }}
+      - run: pwsh.exe ./website/static/install/proto.ps1 0.40.0
+        if: ${{ runner.os == 'Windows' }}

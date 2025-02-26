@@ -1,12 +1,12 @@
 ---
 slug: v0.13
-title: v0.13 - Hashing and toolchain improvements
+title: moon v0.13 - Hashing and toolchain improvements
 authors: [milesj]
 tags: [hasher, toolchain]
 ---
 
 With this release, we've landed some improvements to our smart hashing, and paved the road for
-additional languagues and tooling.
+additional languages and tooling.
 
 <!--truncate-->
 
@@ -15,9 +15,8 @@ additional languagues and tooling.
 Title may seem confusing at first, but don't worry, everything is fine! For some context, moon has
 been designed to be language agnostic as we plan to support more than JavaScript in the future.
 However, some aspects of the codebase were hard-coded for JavaScript and made the assumption that
-JavaScript will always be used, with one such aspect being the
-[`node`](../docs/config/workspace#node) setting in
-[`.moon/workspace.yml`](../docs/config/workspace).
+JavaScript will always be used, with one such aspect being the [`node`](../docs/config/workspace)
+setting in [`.moon/workspace.yml`](../docs/config/workspace).
 
 We've reworked this setting to be optional, which allows a repository to opt out of JavaScript.
 Right now, this basically does nothing as we do not support other languages yet, but we felt it

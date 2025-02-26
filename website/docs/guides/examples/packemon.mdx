@@ -6,10 +6,9 @@ sidebar_label: Packemon
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import AddDepsTabs from '@site/src/components/AddDepsTabs';
+import HeadingApiLink from '@site/src/components/Docs/HeadingApiLink';
 
-> Packemon has been prototyped in our
-> [examples repository](https://github.com/moonrepo/examples/blob/master/.moon/project.yml#L22),
-> check it out!
+<HeadingApiLink to="https://github.com/moonrepo/examples/blob/master/.moon/tasks/node.yml#L22" />
 
 In this guide, you'll learn how to integrate [Packemon](https://packemon.dev/) into moon. Packemon
 is a tool for properly building npm packages for distribution, it does this by providing the
@@ -27,126 +26,42 @@ repository.
 
 ## Setup
 
-Package building does not apply to every project, only packages, so where you place the build task
-is up to you. The following patterns are suggested:
+Since Packemon is per-project, the associated moon tasks should be defined in each project's
+[`moon.yml`](../../config/project) file.
 
-- A `buildPackage` task in [`.moon/project.yml`](../../config/global-project), which can be
-  inherited by package based projects.
-- A `build` task in each [`moon.yml`](../../config/project).
+:::tip
 
-<Tabs
-  groupId="config-type"
-  defaultValue="global"
-  values={[
-    { label: 'Globally inherited', value: 'global' },
-    { label: 'Per project', value: 'local' },
-  ]}
->
-<TabItem value="global">
+We suggest inheriting Packemon tasks from the
+[official moon configuration preset](https://github.com/moonrepo/moon-configs/tree/master/javascript/packemon).
 
-```yaml title=".moon/project.yml"
-buildPackage:
-	command:
-		- 'packemon'
-		- 'pack'
-		# Add `engines` field to package
-		- '--addEngines'
-		# Add `exports` field to package
-		- '--addExports'
-		# Generate TypeScript declarations
-		- '--declaration'
-		- '--declarationConfig'
-		- 'tsconfig.build.json'
-	inputs:
-		# Source files only
-		- 'src/**/*'
-		- 'package.json'
-		# A build specific tsconfig
-		- 'tsconfig.build.json'
-		- '/tsconfig.options.json'
-	outputs:
-		# Matches `compilerOptions.outDir`
-		- 'dts'
-	env:
-		NODE_ENV: 'production'
-```
+:::
 
-With this being defined globally, all package-based projects can inherit this task and rename it as
-follows.
+```yaml title="<project>/moon.yml"
+# Inherit tasks from the `packemon` preset
+# https://github.com/moonrepo/moon-configs
+tags: ['packemon']
 
-```yaml title="<package>/moon.yml"
-# Rename the `buildPackage` task to `build` for this project
-workspace:
-	inheritedTasks:
-		rename:
-			buildPackage: 'build'
-
-# Define additional compiled files unique to this project
+# Set the output formats
 tasks:
-	build:
-		outputs:
-			- 'cjs'
+  build:
+    outputs:
+      - 'cjs'
 ```
-
-However, for other project types like applications, this task will need to be _excluded_, otherwise
-it will run and fail in CI.
-
-```yaml title="<app>/moon.yml"
-# Exclude the `buildPackage` task for this project
-workspace:
-	inheritedTasks:
-		exclude: ['buildPackage']
-```
-
-</TabItem>
-<TabItem value="local">
-
-```yaml title="<package>/moon.yml"
-build:
-	command:
-		- 'packemon'
-		- 'pack'
-		# Add `engines` field to package
-		- '--addEngines'
-		# Add `exports` field to package
-		- '--addExports'
-		# Generate TypeScript declarations
-		- '--declaration'
-		- '--declarationConfig'
-		- 'tsconfig.build.json'
-	inputs:
-		# Source files only
-		- 'src/**/*'
-		- 'package.json'
-		# A build specific tsconfig
-		- 'tsconfig.build.json'
-		- '/tsconfig.options.json'
-	outputs:
-		# Compiled files: lib, esm, cjs, mjs, etc
-		- 'lib'
-		# Matches `compilerOptions.outDir`
-		- 'dts'
-	env:
-		NODE_ENV: 'production'
-```
-
-</TabItem>
-</Tabs>
 
 ### TypeScript integration
 
 Packemon has built-in support for TypeScript, but to _not_ conflict with a
-[typecheck task](./typescript), a separate `tsconfig.json` file is required, which we named
-`tsconfig.build.json`.
+[typecheck task](./typescript), a separate `tsconfig.json` file is required, which is named
+`tsconfig.<format>.json`.
 
 This config is necessary to _only_ compile source files, and to not include unwanted files in the
-declaration output directory (`dts`).
+declaration output directory.
 
-```json title="tsconfig.build.json"
+```json title="tsconfig.esm.json"
 {
   "extends": "../../tsconfig.options.json",
   "compilerOptions": {
-    "outDir": "dts",
+    "outDir": "esm",
     "rootDir": "src"
   },
   "include": ["src/**/*"],

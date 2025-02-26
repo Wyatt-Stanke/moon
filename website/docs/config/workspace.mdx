@@ -1,5 +1,5 @@
 ---
-title: .moon/workspace.yml
+title: .moon/workspace.{pkl,yml}
 toc_max_heading_level: 6
 ---
 
@@ -9,22 +9,32 @@ import HeadingApiLink from '@site/src/components/Docs/HeadingApiLink';
 import RequiredLabel from '@site/src/components/Docs/RequiredLabel';
 import VersionLabel from '@site/src/components/Docs/VersionLabel';
 
-The `.moon/workspace.yml` file configures available projects and their locations, the toolchain, and
-the workspace development environment.
+The `.moon/workspace.yml` file configures projects and services in the workspace. This file is
+_required_.
 
-## `extends`<VersionLabel version="0.4" />
+```yaml title=".moon/workspace.yml"
+$schema: 'https://moonrepo.dev/schemas/workspace.json'
+```
+
+:::info
+
+Workspace configuration can also be written in [Pkl](../guides/pkl-config) instead of YAML.
+
+:::
+
+## `extends`
 
 <HeadingApiLink to="/api/types/interface/WorkspaceConfig#extends" />
 
-Defines an external `.moon/workspace.yml` to extend and inherit settings from. Perfect for
-reusability and sharing configuration across repositories and projects. When defined, this setting
-must be an HTTPS URL _or_ relative file system path that points to a valid YAML document!
+Defines one or many external `.moon/workspace.yml`'s to extend and inherit settings from. Perfect
+for reusability and sharing configuration across repositories and projects. When defined, this
+setting must be an HTTPS URL _or_ relative file system path that points to a valid YAML document!
 
 ```yaml title=".moon/workspace.yml" {1}
 extends: 'https://raw.githubusercontent.com/organization/repository/master/.moon/workspace.yml'
 ```
 
-:::caution
+:::info
 
 Settings will be merged recursively for blocks, with values defined in the local configuration
 taking precedence over those defined in the extended configuration. However, the `projects` setting
@@ -37,17 +47,18 @@ _does not merge_!
 <HeadingApiLink to="/api/types/interface/WorkspaceConfig#projects" />
 
 Defines the location of all [projects](../concepts/project) within the workspace. Supports either a
-manual map of projects (default), _or_ a list of globs in which to automatically locate projects.
+manual map of projects (default), a list of globs in which to automatically locate projects, _or_
+both.
 
-<Tabs
-  groupId="projects-type"
-  defaultValue="manual"
-  values={[
-    { label: 'Manual', value: 'manual' },
-    { label: 'Automatic', value: 'auto' },
-  ]}
->
-<TabItem value="manual">
+:::caution
+
+Projects that depend on each other and form a cycle must be avoided! While we do our best to avoid
+an infinite loop and disconnect nodes from each other, there's no guarantee that tasks will run in
+the correct order.
+
+:::
+
+### Using a map
 
 When using a map, each project must be _manually_ configured and requires a unique
 [name](../concepts/project#names) as the map key, where this name is used heavily on the command
@@ -63,15 +74,15 @@ projects:
   web: 'apps/web'
 ```
 
-</TabItem>
-<TabItem value="auto">
+### Using globs
 
 If manually mapping projects is too tedious or cumbersome, you may provide a list of
 [globs](../concepts/file-pattern#globs) to automatically locate all project folders, relative from
 the workspace root.
 
 When using this approach, the project name is derived from the project folder name, and is cleaned
-to our [supported characters](../concepts/project#names) . Furthermore, globbing **does risk the
+to our [supported characters](../concepts/project#names), but can be customized with the
+[`id`](./project#id) setting in [`moon.yml`](./project). Furthermore, globbing **does risk the
 chance of collision**, and when that happens, we log a warning and skip the conflicting project from
 being configured in the project graph.
 
@@ -79,428 +90,261 @@ being configured in the project graph.
 projects:
   - 'apps/*'
   - 'packages/*'
+  # Only shared folders with a moon configuration
+  - 'shared/*/moon.yml'
 ```
 
-</TabItem>
-</Tabs>
+### Using a map _and_ globs
 
-> Unlike packages in the JavaScript ecosystem, a moon project _does not_ require a `package.json`,
-> and is not coupled to Yarn workspaces (or similar architectures).
+For those situations where you want to use _both_ patterns, you can! The list of globs can be
+defined under a `globs` field, while the map of projects under a `sources` field.
 
-## Languages
+```yaml title=".moon/workspace.yml"
+projects:
+  globs:
+    - 'apps/*'
+    - 'packages/*'
+  sources:
+    www: 'www'
+```
 
-## `node`
+## `codeowners`<VersionLabel version="1.8.0" />
 
-<HeadingApiLink to="/api/types/interface/WorkspaceConfig#node" />
+<HeadingApiLink to="/api/types/interface/WorkspaceConfig#codeowners" />
 
-Defines the Node.js version and package manager to install within the toolchain, as moon _does not_
-use a Node.js binary found on the local machine. Managing the Node.js version within the toolchain
-ensures a deterministic environment across any machine (whether a developer, CI, or production
-machine).
+Configures code owners (`CODEOWNERS`) integration across the entire workspace.
 
-### `version`
+### `globalPaths`
 
-<HeadingApiLink to="/api/types/interface/NodeConfig#version" />
+<HeadingApiLink to="/api/types/interface/CodeownersConfig#globalPaths" />
 
-Defines the explicit Node.js version to use. We require an explicit and semantic major, minor, and
-patch version, to ensure the same environment is used across every machine. Ranges are _not_
-supported.
+This setting defines file patterns and their owners at the workspace-level, and are applied to any
+matching path, at any depth, within the entire workspace. This is useful for defining global or
+fallback owners when a granular [project-level path](./project#paths) does not match or exist.
+
+```yaml title=".moon/workspace.yml" {2-5}
+codeowners:
+  globalPaths:
+    '*': ['@admins']
+    'config/': ['@infra']
+    '/.github/': ['@infra']
+```
+
+### `orderBy`
+
+<HeadingApiLink to="/api/types/interface/CodeownersConfig#orderBy" />
+
+The order in which code owners, grouped by project, are listed in the `CODEOWNERS` file. Accepts
+"file-source" (default) or "project-name".
 
 ```yaml title=".moon/workspace.yml" {2}
-node:
-  version: '16.13.0'
+codeowners:
+  orderBy: 'project-name'
 ```
 
-> Version can be overridden with the `MOON_NODE_VERSION` environment variable.
+### `syncOnRun`
 
-### `packageManager`
+<HeadingApiLink to="/api/types/interface/CodeownersConfig#syncOnRun" />
 
-<HeadingApiLink to="/api/types/interface/NodeConfig#packageManager" />
-
-Defines which package manager to utilize within the workspace. Supports `npm` (default), `pnpm`, or
-`yarn`.
-
-```yaml title=".moon/workspace.yml" {2}
-node:
-  packageManager: 'yarn'
-```
-
-### `npm`, `pnpm`, `yarn`
-
-<HeadingApiLink to="/api/types/interface/NodePackageManagerConfig" />
-
-Optional fields for defining package manager specific configuration. The chosen setting is dependent
-on the value of [`node.packageManager`](#packagemanager). If these settings _are not defined_, the
-latest version of the active package manager will be used (when applicable).
-
-#### `version`
-
-<HeadingApiLink to="/api/types/interface/NodePackageManagerConfig#version" />
-
-The `version` setting defines the explicit package manager version to use. We require an explicit
-major, minor, and patch version, to ensure the same environment is used across every machine.
-
-```yaml title=".moon/workspace.yml" {4}
-node:
-  packageManager: 'yarn'
-  yarn:
-    version: '3.1.0'
-```
-
-> Version can be overridden with the `MOON_NPM_VERSION`, `MOON_PNPM_VERSION`, or `MOON_YARN_VERSION`
-> environment variables.
-
-### `yarn`
-
-<HeadingApiLink to="/api/types/interface/NodeConfig#yarn" />
-
-#### `plugins`
-
-<HeadingApiLink to="/api/types/interface/YarnConfig#plugins" />
-
-A list of plugins that will automatically be imported using `yarn plugin import` (Yarn 2+ only). For
-performance reasons, plugins will only be imported when the Yarn version changes.
-
-```yaml title=".moon/workspace.yml" {4}
-node:
-  packageManager: 'yarn'
-  yarn:
-    version: '3.1.0'
-    plugins:
-      - 'interactive-tools'
-      - 'workspace-tools'
-```
-
-### `addEnginesConstraint`
-
-<HeadingApiLink to="/api/types/interface/NodeConfig#addEnginesConstraint" />
-
-Injects the currently configured [Node.js version](#version) as an `engines` constraint to the root
-`package.json` field. Defaults to `true`.
-
-```yaml
-node:
-  addEnginesConstraint: true
-```
-
-For example, say our Node.js version is "16.15.0", and when we execute a run process through the
-`moon` binary, it will update the root `package.json` with the below. We pin a fixed version to
-ensure other Node.js processes outside of our toolchain are utilizing the same version.
-
-```json title="package.json"
-{
-  // ...
-  "engines": {
-    "node": "16.15.0"
-  }
-}
-```
-
-### `aliasPackageNames`<VersionLabel version="0.10" />
-
-<HeadingApiLink to="/api/types/interface/NodeConfig#aliasPackageNames" />
-
-When enabled, will assign [aliases](../concepts/project#aliases) to configured [projects](#projects)
-based on the `name` field in the project's `package.json`. Aliases can be used as a substitute for
-project names, allowing for the familiar package name to be used within
-[targets](../concepts/target) or configuration.
-
-This setting accepts one of the following values, which determines how to parse and assign the
-alias.
-
-- `name-and-scope` - Will use the package name as-is, including any scope. For example,
-  `@scope/example` or `example`.
-- `name-only` - Will only use the name and disregard any scope. For example, `@scope/example` will
-  become `example`.
-
-```yaml title=".moon/workspace.yml" {2}
-node:
-  aliasPackageNames: 'name-only'
-```
-
-### `dedupeOnLockfileChange`
-
-<HeadingApiLink to="/api/types/interface/NodeConfig#dedupeOnLockfileChange" />
-
-Will dedupe dependencies after they have been installed, added, removing, or changed in any way, in
-an effort to keep the workspace tree as clean and lean as possible. Defaults to `true`.
-
-```yaml title=".moon/workspace.yml" {2}
-node:
-  dedupeOnLockfileChange: true
-```
-
-### `dependencyVersionFormat`<VersionLabel version="0.9" />
-
-<HeadingApiLink to="/api/types/interface/NodeConfig#dependencyVersionFormat" />
-
-When [syncing project dependencies](#syncprojectworkspacedependencies), customize the format that
-will be used for the dependency version range. The following formats are supported (but use the one
-most applicable to your chosen package manager):
-
-- `file` - Uses `file:../relative/path` and copies package contents.
-- `link` - Uses `link:../relative/path` and symlinks package contents.
-- `star` - Uses an explicit `*`.
-- `version` - Uses the explicit version from the dependent project's `package.json`, e.g., "1.2.3".
-- `version-caret` - Uses the version from the dependent project's `package.json` as a caret range,
-  e.g., "^1.2.3".
-- `version-tilde` - Uses the version from the dependent project's `package.json` as a tilde range,
-  e.g., "~1.2.3".
-- `workspace` (default) - Uses `workspace:*`, which resolves to "1.2.3". Requires package
-  workspaces.
-- `workspace-caret` - Uses `workspace:^`, which resolves to "^1.2.3". Requires package workspaces.
-- `workspace-tilde` - Uses `workspace:~`, which resolves to "~1.2.3". Requires package workspaces.
-
-```yaml title=".moon/workspace.yml" {2}
-node:
-  dependencyVersionFormat: 'link'
-```
-
-> This setting does not apply to peer dependencies, as they will always use a format of
-> `^<major>.0.0`.
-
-### `inferTasksFromScripts`<VersionLabel version="0.8" />
-
-<HeadingApiLink to="/api/types/interface/NodeConfig#inferTasksFromScripts" />
-
-Will infer and automatically create [tasks](../concepts/task) from `package.json` scripts. Defaults
+Will automatically generate a `CODEOWNERS` file by aggregating and syncing all project
+[`owners`](./project#owners) in the workspace when a [target is run](../concepts/target). The format
+and location of the `CODEOWNERS` file is based on the [`vcs.provider`](#provider) setting. Defaults
 to `false`.
 
-This requires the [project's language](./project#language) to be "javascript" or "typescript", a
-`package.json` to exist in the project, and will take the following into account:
-
-- Script names will be converted to kebab-case, and will become the task ID.
-- Pre, post, and life cycle hooks are ignored.
-- Tasks defined in `.moon/project.yml` or `moon.yml` take precedence over scripts of the same name.
-
-To verify inferred tasks, run [`moon project <id>`](../commands/project) (pass `--json` to view raw
-config and options). Tasks that are inferred will have their command and args set to
-`moon node run-script`.
-
 ```yaml title=".moon/workspace.yml" {2}
-node:
-  inferTasksFromScripts: true
+codeowners:
+  syncOnRun: true
 ```
 
-:::caution
+## `constraints`
 
-This implementation shares functionality with
-[`moon migrate from-package-json`](../commands/migrate/from-package-json), and will attempt to
-determine environment variables, outputs, CI options, and more! Be aware of these when utilizing
-this feature, especially in regards to `runInCI`, as it may be inaccurate!
+<HeadingApiLink to="/api/types/interface/WorkspaceConfig#constraints" />
+
+Configures constraints between projects that are enforced during project graph generation. This is
+also known as project boundaries.
+
+### `enforceProjectTypeRelationships`
+
+<HeadingApiLink to="/api/types/interface/ConstraintsConfig#enforceProjectTypeRelationships" />
+
+Enforces allowed relationships between a project its dependencies based on the project's
+[`type`](./project#type) and [`stack`](./project#stack) settings. When a project depends on another
+project of an invalid type, an error will be thrown when attempting to run a task. The following
+relationships are enforced when this setting is enabled, which defaults to `true`.
+
+- Applications can depend on all types _except other_ applications or automation.
+- Automation can depend on all types _except other_ automation.
+- Libraries can _only_ depend on other libraries, configuration, or scaffolding.
+- Tools can _only_ depend on libraries, configuration, or scaffolding.
+- Configuration and scaffolding can _only_ depend on other configuration and scaffolding.
+
+When the project `stack` setting is defined, it alters these rules to allow these kinds of
+relationships. For example, a frontend application can depend on a backend application, but not
+another frontend application.
+
+```yaml title=".moon/workspace.yml" {2}
+constraints:
+  enforceProjectTypeRelationships: false
+```
+
+> Projects with an unconfigured or unknown type are ignored during enforcement.
+
+### `tagRelationships`
+
+<HeadingApiLink to="/api/types/interface/ConstraintsConfig#tagRelationships" />
+
+Enforces allowed relationships between a project and its dependencies based on the project's
+[`tags`](./project#tags) setting. This works in a similar fashion to
+`enforceProjectTypeRelationships`, but gives you far more control over what these relationships look
+like.
+
+For example, let's enforce that Next.js projects using the `next` tag can only depend on React
+projects using the `react` tag. If a dependency does not have one of the configured required tags,
+in this case `react`, an error will occur.
+
+```yaml title=".moon/workspace.yml" {2,3}
+constraints:
+  tagRelationships:
+    next: ['react']
+```
+
+On the project side, we would configure [`moon.yml`](./project#tags) like so:
+
+```yaml title="app/moon.yml"
+tags: ['next']
+dependsOn: ['components']
+```
+
+```yaml title="packages/components/moon.yml"
+tags: ['react']
+```
+
+## `docker`<VersionLabel version="1.27.0" />
+
+<HeadingApiLink to="/api/types/interface/ProjectConfig#docker" />
+
+Configures Docker integration for the entire workspace.
+
+### `prune`
+
+<HeadingApiLink to="/api/types/interface/DockerConfig#prune" />
+
+Configures aspects of the Docker pruning process when
+[`moon docker prune`](../commands/docker/prune) is executed.
+
+#### `deleteVendorDirectories`
+
+<HeadingApiLink to="/api/types/interface/DockerPruneConfig#deleteVendorDirectories" />
+
+Automatically delete vendor directories (package manager dependencies, build targets, etc) while
+pruning. For example, `node_modules` for JavaScript, or `target` for Rust. Defaults to `true`.
+
+```yaml title=".moon/workspace.yml" {3}
+docker:
+  prune:
+    deleteVendorDirectories: false
+```
+
+> This process happens before toolchain dependencies are installed.
+
+#### `installToolchainDeps`
+
+<HeadingApiLink to="/api/types/interface/DockerPruneConfig#installToolchainDeps" />
+
+Automatically install production dependencies for all required toolchain's of the focused projects
+within the Docker build. For example, `node_modules` for JavaScript. Defaults to `true`.
+
+```yaml title=".moon/workspace.yml" {3}
+docker:
+  prune:
+    installToolchainDeps: false
+```
+
+> This process happens after vendor directories are deleted.
+
+### `scaffold`
+
+<HeadingApiLink to="/api/types/interface/DockerConfig#scaffold" />
+
+Configures aspects of the Docker scaffolding process when
+[`moon docker scaffold`](../commands/docker/scaffold) is executed. Only applies to the
+[workspace skeleton](../commands/docker/scaffold#workspace).
+
+#### `copyToolchainFiles`
+
+<HeadingApiLink to="/api/types/interface/DockerScaffoldConfig#copyToolchainFiles" />
+
+Copy all toolchain specific configs, manifests, and related files in the entire repository into the
+`.moon/docker/workspace` skeleton. This is required for certain tools, like package managers, to
+work correctly. Defaults to `true`.
+
+```yaml title=".moon/workspace.yml" {3}
+docker:
+  scaffold:
+    copyToolchainFiles: false
+```
+
+> If you disable this feature, you'll most likely need to manually `COPY` all necessary files in
+> your `Dockerfile`.
+
+#### `include`
+
+<HeadingApiLink to="/api/types/interface/DockerScaffoldConfig#include" />
+
+List of globs in which to copy additional workspace-relative files into the `.moon/docker/workspace`
+skeleton. When not defined, does nothing.
+
+```yaml title=".moon/workspace.yml" {3,4}
+docker:
+  scaffold:
+    include:
+      - '**/package.json'
+```
+
+## `experiments`<VersionLabel version="1.11.0" />
+
+<HeadingApiLink to="/api/types/interface/WorkspaceConfig#experiments" />
+
+Enable or disable experiments that alter core functionality.
+
+## `extensions`<VersionLabel version="1.20.0" />
+
+<HeadingApiLink to="/api/types/interface/WorkspaceConfig#extensions" />
+
+A mapping of extensions that can be downloaded and executed with the [`moon ext`](../commands/ext)
+command. An extension is a WASM plugin, and the location of the WASM file must be defined with the
+`plugin` field, which requires a
+[plugin locator string](../guides/wasm-plugins#configuring-plugin-locations).
+
+```yaml title=".moon/workspace.yml" {2-5}
+extensions:
+  example:
+    plugin: 'file://./path/to/example.wasm'
+    # or
+    plugin: 'https://example.com/path/to/example.wasm'
+```
+
+Additionally, extensions support custom configuration that is passed to the WASM runtime when the
+plugin is instantiated. This configuration is defined by inserting additional fields under the
+extension name, relative to the `plugin` field. Each extension may have its own settings, so refer
+to their documentation for more information.
+
+```yaml title=".moon/workspace.yml" {2-5}
+extensions:
+  example:
+    plugin: 'file://./path/to/example.wasm'
+    setting1: true
+    setting2: 'abc'
+```
+
+:::info
+
+View our official [extensions guide](../guides/extensions) for more information, including built-in
+extensions!
 
 :::
 
-### `syncProjectWorkspaceDependencies`
-
-<HeadingApiLink to="/api/types/interface/NodeConfig#syncProjectWorkspaceDependencies" />
-
-Will sync a project's [`dependsOn`](./project#dependson) setting as normal dependencies within the
-project's `package.json`. If a dependent project does not have a `package.json`, or if a dependency
-of the same name has an explicit version already defined, the sync will be skipped. Defaults to
-`true`.
-
-```yaml title=".moon/workspace.yml" {2}
-node:
-  syncProjectWorkspaceDependencies: true
-```
-
-A quick example on how this works. Given the following `dependsOn`:
-
-```yaml title="moon.yml"
-dependsOn:
-  - 'designSystem'
-  - 'reactHooks'
-```
-
-Would result in the following `dependencies` within a project's `package.json`. The version format
-can be customized with [`node.dependencyVersionFormat`](#dependencyversionformat).
-
-```json title="package.json"
-{
-  // ...
-  "dependencies": {
-    "@company/design-system": "workspace:*",
-    "@company/react-hooks": "workspace:*"
-    // ...
-  }
-}
-```
-
-### `syncVersionManagerConfig`
-
-<HeadingApiLink to="/api/types/interface/NodeConfig#syncVersionManagerConfig" />
-
-Will sync the currently configured [Node.js version](#version) to a 3rd-party version manager's
-config/rc file. Supports "nodenv" (syncs to `.node-version`), "nvm" (syncs to `.nvmrc`), or none
-(default).
-
-```yaml title=".moon/workspace.yml" {2}
-node:
-  syncVersionManagerConfig: 'nvm'
-```
-
-This is a special setting that ensure other Node.js processes outside of our toolchain are utilizing
-the same version, which is a very common practice when managing dependencies.
-
-## `typescript`<VersionLabel updated version="0.12" />
-
-<HeadingApiLink to="/api/types/interface/WorkspaceConfig#typescript" />
-
-Dictates how moon interacts with and utilizes TypeScript within the workspace. This field is
-optional and is undefined by default. Define it to enable TypeScript support.
-
-### `createMissingConfig`<VersionLabel version="0.6" />
-
-<HeadingApiLink to="/api/types/interface/TypeScriptConfig#createMissingConfig" />
-
-When [syncing project references](#syncprojectreferences) and a depended on project _does not_ have
-a `tsconfig.json`, automatically create one. Defaults to `true`.
-
-```yaml title=".moon/workspace.yml" {2}
-typescript:
-  createMissingConfig: true
-```
-
-### `projectConfigFileName`
-
-<HeadingApiLink to="/api/types/interface/TypeScriptConfig#projectConfigFileName" />
-
-Defines the file name of the `tsconfig.json` found in the project root. We utilize this setting when
-syncing project references between projects. Defaults to `tsconfig.json`.
-
-```yaml title=".moon/workspace.yml" {2}
-typescript:
-  projectConfigFileName: 'tsconfig.build.json'
-```
-
-### `rootConfigFileName`
-
-<HeadingApiLink to="/api/types/interface/TypeScriptConfig#rootConfigFileName" />
-
-Defines the file name of the `tsconfig.json` found in the workspace root. We utilize this setting
-when syncing projects as references. Defaults to `tsconfig.json`.
-
-```yaml title=".moon/workspace.yml" {2}
-typescript:
-  rootConfigFileName: 'tsconfig.projects.json'
-```
-
-### `rootOptionsConfigFileName`<VersionLabel version="0.6" />
-
-<HeadingApiLink to="/api/types/interface/TypeScriptConfig#rootOptionsConfigFileName" />
-
-Defines the file name of the config file found in the workspace root that houses shared compiler
-options. Defaults to `tsconfig.options.json`. This setting is used in the following scenarios:
-
-- When [creating a `tsconfig.json` for a project](#), sets the `extends` field to this value.
-
-```yaml title=".moon/workspace.yml" {2}
-typescript:
-  rootOptionsConfigFileName: 'tsconfig.base.json'
-```
-
-### `routeOutDirToCache`
-
-<HeadingApiLink to="/api/types/interface/TypeScriptConfig#routeOutDirToCache" />
-
-Updates the `outDir` compiler option in each project's [`tsconfig.json`](#projectConfigFileName) to
-route to moon's cache folder. This is useful when using project references and wanting to keep all
-the compiled `.d.ts` files _out_ of the project folder. Defaults to `false`.
-
-```yaml title=".moon/workspace.yml" {2}
-typescript:
-  routeOutDirToCache: true
-```
-
-As a demonstration, if we had an npm package located at "packages/components", the `outDir` compiler
-option will be re-routed to the following when syncing.
-
-```json title="<project>/tsconfig.json"
-{
-  // ...
-  "compilerOptions": {
-    // ...
-    "outDir": "../../.moon/cache/types/packages/components"
-  }
-}
-```
-
-### `syncProjectReferences`
-
-<HeadingApiLink to="/api/types/interface/TypeScriptConfig#syncProjectReferences" />
-
-Will sync a project's [dependencies](../concepts/project#dependencies) (when applicable) as project
-references within that project's `tsconfig.json`, and the workspace root `tsconfig.json`. Defaults
-to `true` when the parent `typescript` setting is defined, otherwise `false`.
-
-```yaml title=".moon/workspace.yml" {2}
-typescript:
-  syncProjectReferences: true
-```
-
-A quick example on how this works. Given the following `dependsOn`:
-
-```yaml title="moon.yml"
-dependsOn:
-  - 'designSystem'
-  - 'reactHooks'
-```
-
-Would result in the following `references` within both `tsconfig.json`s.
-
-```json title="tsconfig.json"
-{
-  // ...
-  "references": [
-    // ...
-    { "path": "../../design-system" },
-    { "path": "../../react-hooks" }
-  ]
-}
-```
-
-### `syncProjectReferencesToPaths`
-
-<HeadingApiLink to="/api/types/interface/TypeScriptConfig#syncProjectReferencesToPaths" />
-
-Will sync a project's [`tsconfig.json`](#projectConfigFileName) project references to the `paths`
-compiler option, using the referenced project's `package.json` name. This is useful for mapping
-import aliases to their source code. Defaults to `false`.
-
-```yaml title=".moon/workspace.yml" {2}
-typescript:
-  syncProjectReferencesToPaths: true
-```
-
-As a demonstration, if we had a reference to a shared npm package with the name `@brand/components`,
-the `paths` compiler option would be updated to the following when syncing. The index file may exist
-in a `src` folder, or the root of the package.
-
-```json title="<project>/tsconfig.json"
-{
-  // ...
-  "compilerOptions": {
-    // ...
-    "paths": {
-      "@brand/components": ["../shared/components/src/index.ts"],
-      "@brand/components/*": ["../shared/components/src/*"]
-    }
-  },
-  "references": [
-    {
-      "path": "../shared/components"
-    }
-  ]
-}
-```
-
-> This setting runs _after_ [`syncProjectReferences`](#syncprojectreferences) and will inherit any
-> synced references from that setting.
-
-## Features
-
-## `generator`<VersionLabel version="0.14" />
+## `generator`
 
 <HeadingApiLink to="/api/types/interface/WorkspaceConfig#generator" />
 
@@ -510,21 +354,79 @@ Configures aspects of the template generator.
 
 <HeadingApiLink to="/api/types/interface/GeneratorConfig#templates" />
 
-A list of file system paths where templates can be located, relative from the workspace root.
-Defaults to `./templates`.
+A list of paths in which templates can be located. Supports the following types of paths, and
+defaults to `./templates`.
+
+- File system paths, relative from the workspace root.
+- Git repositories and a revision, prefixed with `git://`. <VersionLabel inline version="1.23.0" />
+- npm packages and a version, prefixed with `npm://`. <VersionLabel inline version="1.23.0" />
 
 ```yaml title=".moon/workspace.yml" {2-4}
 generator:
   templates:
     - './templates'
-    - './other/templates'
+    - 'file://./other/templates'
+    - 'git://github.com/moonrepo/templates#master'
+    - 'npm://@moonrepo/templates#1.2.3'
 ```
 
-## `hasher`<VersionLabel version="0.13" />
+> Learn more about this in the official
+> [code generation guide](../guides/codegen#configuring-template-locations)!
+
+## `hasher`
 
 <HeadingApiLink to="/api/types/interface/WorkspaceConfig#hasher" />
 
-Configures aspects of smart hashing layer.
+Configures aspects of the smart hashing layer.
+
+### `batchSize`
+
+<HeadingApiLink to="/api/types/interface/HasherConfig#batchSize" />
+
+When hashing a list of files, we split the list into batches to help reduce memory footprint and
+avoid overloading the configured VCS. This setting controls how many files are in each batch and
+defaults to `2500`.
+
+If you're running into memory issues, or moon hanging during the file hashing process, lowering this
+number may help resolve the issue.
+
+```yaml title=".moon/workspace.yml" {2}
+hasher:
+  batchSize: 1000
+```
+
+### `ignoreMissingPatterns`<VersionLabel version="1.10.0" />
+
+<HeadingApiLink to="/api/types/interface/HasherConfig#ignoreMissingPatterns" />
+
+When [`hasher.warnOnMissingInputs`](#warnonmissinginputs) is enabled, moon will log a warning to the
+terminal that an input is missing. This is useful for uncovering misconfigurations, but can be quite
+noisy when inputs are truly optional.
+
+To ignore warnings for missing inputs, a list of [glob patterns](../concepts/file-pattern#globs) can
+be configured to filter and ignore files. Files are matched against workspace relative paths, so
+prefixing patterns with `**/` is suggested.
+
+```yaml title=".moon/workspace.yml" {2-4}
+hasher:
+  ignoreMissingPatterns:
+    - '**/.eslintrc.*'
+    - '**/*.config.*'
+```
+
+### `ignorePatterns`<VersionLabel version="1.10.0" />
+
+<HeadingApiLink to="/api/types/interface/HasherConfig#ignorePatterns" />
+
+A list of [glob patterns](../concepts/file-pattern#globs) used to filter and ignore files during the
+inputs hashing process. Files are matched against workspace relative paths, so prefixing patterns
+with `**/` is suggested.
+
+```yaml title=".moon/workspace.yml" {2,3}
+hasher:
+  ignorePatterns:
+    - '**/*.png'
+```
 
 ### `optimization`
 
@@ -542,18 +444,291 @@ hasher:
   optimization: 'performance'
 ```
 
-## `runner`<VersionLabel updated version="0.13" />
+### `walkStrategy`
+
+<HeadingApiLink to="/api/types/interface/HasherConfig#walkStrategy" />
+
+Defines the file system walking strategy to utilize when discovering inputs to hash.
+
+- `glob` - Walks the file system using glob patterns.
+- `vcs` (default) - Calls out to the [VCS](#vcs) to extract files from its working tree.
+
+```yaml title=".moon/workspace.yml" {2}
+hasher:
+  walkStrategy: 'glob'
+```
+
+### `warnOnMissingInputs`
+
+<HeadingApiLink to="/api/types/interface/HasherConfig#warnOnMissingInputs" />
+
+When enabled, will log warnings to the console when attempting to hash an input that does not exist.
+This is useful in uncovering misconfigured tasks. Defaults to `true`.
+
+```yaml title=".moon/workspace.yml" {2}
+hasher:
+  warnOnMissingInputs: false
+```
+
+## `notifier`
+
+<HeadingApiLink to="/api/types/interface/WorkspaceConfig#notifier" />
+
+Configures how moon notifies and interacts with a developer or an external system.
+
+### `webhookUrl`
+
+<HeadingApiLink to="/api/types/interface/NotifierConfig#webhookUrl" />
+
+Defines an HTTPS URL that all pipeline events will be posted to. View the
+[webhooks guide for more information](../guides/webhooks) on available events.
+
+```yaml title=".moon/workspace.yml" {2}
+notifier:
+  webhookUrl: 'https://api.company.com/some/endpoint'
+```
+
+## `unstable_remote`<VersionLabel version="1.30.0" />
+
+<HeadingApiLink to="/api/types/interface/WorkspaceConfig#unstable_remote" />
+
+Configures a remote service, primarily for cloud-based caching of artifacts. Learn more about this
+in the [remote caching](../guides/remote-cache) guide.
+
+### `api`<VersionLabel version="1.32.0" />
+
+<HeadingApiLink to="/api/types/interface/RemoteConfig#api" />
+
+The API format of the remote server. This format dictates which type of client moon uses for
+communicating with. Supports the following:
+
+- `grpc` (default) - Uses the gRPC API: https://github.com/bazelbuild/remote-apis
+- `http` - Uses the HTTP API: https://bazel.build/remote/caching#http-caching
+
+```yaml title=".moon/workspace.yml" {2}
+unstable_remote:
+  api: 'grpc'
+```
+
+### `auth`<VersionLabel version="1.32.0" />
+
+<HeadingApiLink to="/api/types/interface/RemoteConfig#auth" />
+
+Configures authorization and authentication level features of our remote clients.
+
+#### `headers`<VersionLabel version="1.32.0" />
+
+<HeadingApiLink to="/api/types/interface/RemoteAuthConfig#headers" />
+
+A mapping of HTTP headers to include in all requests to the remote server. These headers are applied
+to all [API formats and protocols](#api), not just HTTP.
+
+```yaml title=".moon/workspace.yml" {2-4}
+unstable_remote:
+  auth:
+    headers:
+      'X-Custom-Header': 'value'
+```
+
+#### `token`<VersionLabel version="1.32.0" />
+
+<HeadingApiLink to="/api/types/interface/RemoteAuthConfig#token" />
+
+The name of an environment variable in which to extract a token for
+[Bearer HTTP authorization](https://swagger.io/docs/specification/v3_0/authentication/bearer-authentication/).
+An `Authorization` HTTP header will be included in all requests to the remote server.
+
+If the token does not exist, or is not enabled, remote caching will be disabled.
+
+```yaml title=".moon/workspace.yml" {2-4}
+unstable_remote:
+  auth:
+    token: 'ENV_VAR_NAME'
+```
+
+### `cache`
+
+<HeadingApiLink to="/api/types/interface/RemoteConfig#cache" />
+
+Configures aspects of the caching layer, primarily the action cache (AC) and content addressable
+cache (CAS).
+
+#### `compression`<VersionLabel version="1.31.0" />
+
+<HeadingApiLink to="/api/types/interface/RemoteCacheConfig#compression" />
+
+The compression format to use when uploading/downloading blobs. Supports `none` and `zstd`, and
+defaults to no compression (`identity` format in RE API).
+
+```yaml title=".moon/workspace.yml" {3}
+unstable_remote:
+  cache:
+    compression: 'zstd'
+```
+
+:::info
+
+Compression is only applied to gRPC based APIs, not HTTP.
+
+:::
+
+#### `instanceName`
+
+<HeadingApiLink to="/api/types/interface/RemoteCacheConfig#instanceName" />
+
+A
+[unique identifier](https://github.com/bazelbuild/remote-apis/blob/main/build/bazel/remote/execution/v2/remote_execution.proto#L223)
+used to distinguish between the various instances on the host. This allows the same remote service
+to serve and partition multiple moon repositories. Defaults to `moon-outputs`.
+
+```yaml title=".moon/workspace.yml" {3}
+unstable_remote:
+  cache:
+    instanceName: 'custom-dir-name'
+```
+
+> We suggest changing the instance name to the name of your repository!
+
+### `host`
+
+<HeadingApiLink to="/api/types/interface/RemoteConfig#host" />
+
+The host URL to communicate with when uploading and downloading artifacts. Supports both
+`grpc(s)://` and `http(s)://` protocols. This field is required!
+
+```yaml title=".moon/workspace.yml" {2}
+unstable_remote:
+  host: 'grpcs://your-host.com:9092'
+```
+
+### `mtls`
+
+<HeadingApiLink to="/api/types/interface/RemoteConfig#mtls" />
+
+Connect to the host using server and client authentication with mTLS. This takes precedence over
+normal TLS.
+
+```yaml title=".moon/workspace.yml" {3-7}
+unstable_remote:
+  # ...
+  mtls:
+    caCert: 'certs/ca.pem'
+    clientCert: 'certs/client.pem'
+    clientKey: 'certs/client.key'
+    domain: 'your-host.com'
+```
+
+#### `assumeHttp2`
+
+<HeadingApiLink to="/api/types/interface/RemoteMtlsConfig#assumeHttp2" />
+
+If true, assume that the host supports HTTP/2, even if it doesn't provide protocol negotiation via
+ALPN.
+
+#### `caCert`
+
+<HeadingApiLink to="/api/types/interface/RemoteMtlsConfig#caCert" />
+
+A file path, relative from the workspace root, to the certificate authority PEM encoded X509
+certificate (typically `ca.pem`).
+
+#### `clientCert`
+
+<HeadingApiLink to="/api/types/interface/RemoteMtlsConfig#clientCert" />
+
+A file path, relative from the workspace root, to the client's PEM encoded X509 certificate
+(typically `client.pem`).
+
+#### `clientKey`
+
+<HeadingApiLink to="/api/types/interface/RemoteMtlsConfig#clientKey" />
+
+A file path, relative from the workspace root, to the client's PEM encoded X509 private key
+(typically `client.key`).
+
+#### `domain`
+
+<HeadingApiLink to="/api/types/interface/RemoteMtlsConfig#domain" />
+
+The domain name in which to verify the TLS certificate.
+
+### `tls`
+
+<HeadingApiLink to="/api/types/interface/RemoteConfig#tls" />
+
+Connect to the host using server-only authentication with TLS.
+
+```yaml title=".moon/workspace.yml" {3-5}
+unstable_remote:
+  # ...
+  tls:
+    cert: 'certs/ca.pem'
+    domain: 'your-host.com'
+```
+
+#### `assumeHttp2`
+
+<HeadingApiLink to="/api/types/interface/RemoteTlsConfig#assumeHttp2" />
+
+If true, assume that the host supports HTTP/2, even if it doesn't provide protocol negotiation via
+ALPN.
+
+#### `cert`
+
+<HeadingApiLink to="/api/types/interface/RemoteTlsConfig#cert" />
+
+A file path, relative from the workspace root, to the certificate authority PEM encoded X509
+certificate (typically `ca.pem`).
+
+#### `domain`
+
+<HeadingApiLink to="/api/types/interface/RemoteTlsConfig#domain" />
+
+The domain name in which to verify the TLS certificate.
+
+## `runner`
 
 <HeadingApiLink to="/api/types/interface/WorkspaceConfig#runner" />
 
-Configures aspects of the action runner.
+Configures aspects of task running and the action pipeline.
 
-### `cacheLifetime`<VersionLabel version="0.11" />
+### `archivableTargets`
+
+<HeadingApiLink to="/api/types/interface/RunnerConfig#archivableTargets" />
+
+Defines a list of [targets](../concepts/target), with or without scope, that will be cached and
+archived within the runner. Tasks that produce [outputs](./project#outputs) are automatically
+archived, and do not need to be defined here. Defaults to an empty list.
+
+```yaml title=".moon/workspace.yml" {2-4}
+runner:
+  archivableTargets:
+    - ':test'
+    - 'app:typecheck'
+```
+
+> This setting primarily exists for [remote caching](../guides/remote-cache) as it will create and
+> persist tar archives located in `.moon/cache/outputs`.
+
+### `autoCleanCache`<VersionLabel version="1.24.0" />
+
+<HeadingApiLink to="/api/types/interface/RunnerConfig#autoCleanCache" />
+
+Automatically cleans cached artifacts older than [`cacheLifetime`](#cachelifetime) from the cache
+directory (`.moon/cache`) after every run. This is useful for keeping the cache directory lean.
+Defaults to `true`.
+
+```yaml title=".moon/workspace.yml" {2}
+runner:
+  autoCleanCache: false
+```
+
+### `cacheLifetime`
 
 <HeadingApiLink to="/api/types/interface/RunnerConfig#cacheLifetime" />
 
 The maximum lifetime of cached artifacts before they're marked as stale and automatically removed by
-the action runner. Defaults to "7 days". This field requires an integer and a timeframe unit that
+the action pipeline. Defaults to "7 days". This field requires an integer and a timeframe unit that
 can be [parsed as a duration](https://docs.rs/humantime/2.1.0/humantime/fn.parse_duration.html).
 
 ```yaml title=".moon/workspace.yml" {2}
@@ -561,50 +736,12 @@ runner:
   cacheLifetime: '24 hours'
 ```
 
-### `implicitDeps`<VersionLabel version="0.16" />
-
-<HeadingApiLink to="/api/types/interface/RunnerConfig#implicitDeps" />
-
-Defines task [`deps`](./project#deps) that are implicitly inherited by _all_ tasks within the
-workspace. This is extremely useful for pre-building projects that are used extensively throughout
-the repo, or always building project dependencies. Defaults to an empty list.
-
-```yaml title=".moon/workspace.yml" {2-5}
-runner:
-  implicitDeps:
-    - '^:build'
-```
-
-### `implicitInputs`<VersionLabel version="0.9" />
-
-<HeadingApiLink to="/api/types/interface/RunnerConfig#implicitInputs" />
-
-Defines task [`inputs`](./project#inputs) that are implicitly inherited by _all_ tasks within the
-workspace. This is extremely useful for the "changes to these files should always trigger a task"
-scenario.
-
-Like `inputs`, file paths/globs defined here are relative from the inheriting project.
-[Project and workspace relative file patterns](../concepts/file-pattern#project-relative) are
-supported and encouraged.
-
-```yaml title=".moon/workspace.yml" {2-5}
-runner:
-  implicitInputs:
-    - 'package.json'
-    - '/.moon/project.yml'
-    - '/.moon/workspace.yml'
-```
-
-> When not defined, this setting defaults to the list in the example above. When this setting _is
-> defined_, that list will be overwritten, so be sure to explicitly define them if you would like to
-> retain that functionality.
-
-### `inheritColorsForPipedTasks`<VersionLabel version="0.3" />
+### `inheritColorsForPipedTasks`
 
 <HeadingApiLink to="/api/types/interface/RunnerConfig#inheritColorsForPipedTasks" />
 
 Force colors to be inherited from the current terminal for all tasks that are ran as a child process
-and their output is piped to the action runner. Defaults to `true`.
+and their output is piped to the action pipeline. Defaults to `true`.
 [View more about color handling in moon](../commands/overview#colors).
 
 ```yaml title=".moon/workspace.yml" {2}
@@ -612,7 +749,20 @@ runner:
   inheritColorsForPipedTasks: true
 ```
 
-### `logRunningCommand`<VersionLabel version="0.4" />
+### `killProcessThreshold`<VersionLabel version="1.32.1" />
+
+<HeadingApiLink to="/api/types/interface/RunnerConfig#killProcessThreshold" />
+
+Threshold in milliseconds in which to force kill running child processes after the pipeline receives
+an external signal (like `SIGINT` or `SIGTERM`). A value of 0 will not kill the process and let them
+run to completion. Defaults to `2000` (2 seconds).
+
+```yaml title=".moon/workspace.yml" {2}
+runner:
+  killProcessThreshold: 5000
+```
+
+### `logRunningCommand`
 
 <HeadingApiLink to="/api/types/interface/RunnerConfig#logRunningCommand" />
 
@@ -624,6 +774,17 @@ runner:
   logRunningCommand: true
 ```
 
+## `telemetry`
+
+<HeadingApiLink to="/api/types/interface/WorkspaceConfig#telemetry" />
+
+When enabled, will check for a newer moon version and send anonymous usage data to the moonrepo
+team. This data is used to improve the quality and reliability of the tool. Defaults to `true`.
+
+```yaml title=".moon/workspace.yml" {1}
+telemetry: false
+```
+
 ## `vcs`
 
 <HeadingApiLink to="/api/types/interface/WorkspaceConfig#vcs" />
@@ -632,27 +793,126 @@ Configures the version control system to utilize within the workspace (and repos
 required for determining touched (added, modified, etc) files, calculating file hashes, computing
 affected files, and much more.
 
+### `defaultBranch`
+
+<HeadingApiLink to="/api/types/interface/VcsConfig#defaultBranch" />
+
+Defines the default branch in the repository for comparing differences against. For git, this is
+typically "master" (default) or "main".
+
+```yaml title=".moon/workspace.yml" {2}
+vcs:
+  defaultBranch: 'master'
+```
+
+### `hooks`<VersionLabel version="1.9.0" />
+
+<HeadingApiLink to="/api/types/interface/VcsConfig#hooks" />
+
+Defines a mapping of hooks to a list of commands to run when that event is triggered. There are no
+restrictions to what commands can be run, but the binaries for each command must exist on each
+machine that will be running hooks.
+
+For Git, each [hook name](https://git-scm.com/docs/githooks#_hooks) must be a valid kebab-cased
+name. [Learn more about Git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks).
+
+```yaml title=".moon/workspace.yml" {2-5}
+vcs:
+  hooks:
+    pre-commit:
+      - 'moon run :lint :format --affected --status=staged --no-bail'
+      - 'another-command'
+```
+
+:::info
+
+If running `moon` commands directly, the `moon` binary must be installed globally!
+
+:::
+
+### `hookFormat`<VersionLabel version="1.29.0" />
+
+<HeadingApiLink to="/api/types/interface/VcsConfig#hookFormat" />
+
+The shell and file type in which generated hook files are formatted with. Supports the following:
+
+- `native` (default) - The format native to the current operating system. Bash on Unix, and
+  PowerShell on Windows.
+- `bash` - Forces the format to Bash for all operating systems.
+
+```yaml title=".moon/workspace.yml" {2}
+vcs:
+  hookFormat: 'bash'
+```
+
 ### `manager`
 
 <HeadingApiLink to="/api/types/interface/VcsConfig#manager" />
 
-Defines the VCS tool/binary that is being used for managing the repository. Accepts "git" (default)
-or "svn" (experimental).
+Defines the VCS tool/binary that is being used for managing the repository. Accepts "git" (default).
+Expect more version control systems in the future!
 
 ```yaml title=".moon/workspace.yml" {2}
 vcs:
   manager: 'git'
 ```
 
-### `defaultBranch`
+### `provider`<VersionLabel version="1.8.0" />
 
-<HeadingApiLink to="/api/types/interface/VcsConfig#defaultBranch" />
+<HeadingApiLink to="/api/types/interface/VcsConfig#provider" />
 
-Defines the default upstream branch (master/main/trunk) in the repository for comparing differences
-against. For git, this is typically "master" (default) or "main", and must include the remote prefix
-(before /). For svn, this should always be "trunk".
+Defines the service provider that the repository is hosted on. Accepts "github" (default), "gitlab",
+"bitbucket", or "other".
 
 ```yaml title=".moon/workspace.yml" {2}
 vcs:
-  defaultBranch: 'master'
+  provider: 'github'
+```
+
+### `remoteCandidates`
+
+<HeadingApiLink to="/api/types/interface/VcsConfig#remoteCandidates" />
+
+(Git only) Defines a list of remote candidates to query against to determine merge bases. Defaults
+to "origin" and "upstream".
+
+```yaml title=".moon/workspace.yml" {2-4}
+vcs:
+  remoteCandidates:
+    - 'origin'
+    - 'upstream'
+```
+
+### `syncHooks`<VersionLabel version="1.9.0" />
+
+<HeadingApiLink to="/api/types/interface/VcsConfig#syncHooks" />
+
+Will automatically generate [hook scripts](#hooks) to `.moon/hooks` and sync the scripts to the
+local VCS checkout. The hooks format and location is based on the [`vcs.manager`](#manager) setting.
+Defaults to `false`.
+
+```yaml title=".moon/workspace.yml" {4}
+vcs:
+  hooks:
+    # ...
+  syncHooks: true
+```
+
+:::caution
+
+When enabled, this will sync hooks for _all_ users of the repository. For personal or small
+projects, this may be fine, but for larger projects, this may be undesirable and disruptive!
+
+:::
+
+## `versionConstraint`
+
+<HeadingApiLink to="/api/types/interface/WorkspaceConfig#versionConstraint" />
+
+Defines a version requirement for the currently running moon binary. This provides a mechanism for
+enforcing that the globally installed moon on every developers machine is using an applicable
+version.
+
+```yaml title=".moon/workspace.yml" {1}
+versionConstraint: '>=0.20.0'
 ```

@@ -1,49 +1,53 @@
-# Keep commands in sync with Makefile.toml! We don't use `cargo-make`
-# in CI as it adds roughly 10 minutes to the overall time.
-
 name: Rust
+
 on:
   push:
     branches:
       - master
   pull_request:
     paths:
+      - .cargo/config.toml
       - .github/workflows/rust.yml
       - crates/**
+      - legacy/**
       - tests/**
       - Cargo.lock
       - Cargo.toml
-      - Makefile.toml
       - rust-toolchain.toml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  # Windows fails to compile right now...
-  WITH_COVERAGE: ${{ contains(github.head_ref, 'develop-') || endsWith(github.ref, 'master') }}
+  # For setup-rust
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
+  build-wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: moonrepo/setup-rust@v1
+        with:
+          bins: just,cargo-wasi
+          cache: false
+          targets: wasm32-wasip1
+      - name: Building crates
+        run: just build-wasm
   format:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
-        name: Cache cargo
+      - uses: actions/checkout@v4
+      - uses: moonrepo/setup-rust@v1
         with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
-      - uses: actions-rs/toolchain@v1
-        name: Setup toolchain
-        with:
-          toolchain: 1.64.0
-          profile: minimal
+          bins: just
+          cache: false
           components: rustfmt
-      - uses: actions-rs/cargo@v1
-        name: Check formatting
-        with:
-          command: fmt
-          args: --all --check
+      - name: Check formatting
+        run: just format-check
   lint:
     name: Lint
     runs-on: ${{ matrix.os }}
@@ -52,113 +56,98 @@ jobs:
         os: [ubuntu-latest, windows-latest]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
-        name: Cache cargo
+      - uses: actions/checkout@v4
+      - uses: moonrepo/setup-rust@v1
         with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
-      - uses: actions-rs/toolchain@v1
-        name: Setup toolchain
-        with:
-          toolchain: 1.64.0
-          profile: minimal
+          bins: just
+          cache: false
           components: clippy
-      - uses: actions-rs/cargo@v1
-        name: Run linter
-        with:
-          command: clippy
-          args: --workspace --all-targets
+      - name: Run linter
+        run: just lint
   test:
     name: Test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [buildjet-4vcpu-ubuntu-2204, self-hosted-laptop-macos-m1, self-hosted-laptop-windows-i7]
       fail-fast: false
+    env:
+      # sccache
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      # RUST_LOG: trace
+      RUSTC_WRAPPER: ${{ vars.ENABLE_SCCACHE == 'true' && 'sccache' || '' }}
+      SCCACHE_BUCKET: moon-ci-sccache
+      SCCACHE_S3_KEY_PREFIX: v1
+      SCCACHE_GHA_ENABLED: ${{ vars.ENABLE_SCCACHE == 'true' }}
+      # SCCACHE_LOG: trace
+      # SCCACHE_NO_DAEMON: 1
+      SCCACHE_REGION: us-east-2
+      SCCACHE_S3_SERVER_SIDE_ENCRYPTION: true
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
-        name: Cache cargo
+      - uses: actions/checkout@v4
+      - uses: moonrepo/setup-rust@v1
         with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
-      - uses: actions-rs/toolchain@v1
-        name: Setup toolchain
-        with:
-          toolchain: 1.64.0
-          profile: minimal
+          bins: just, cargo-nextest, cargo-llvm-cov
+          cache: false
           components: llvm-tools-preview
-      - uses: actions-rs/cargo@v1
-        if: ${{ runner.os != 'Windows' && env.WITH_COVERAGE == 'true' }}
-        name: Install grcov
+      - uses: moonrepo/setup-toolchain@v0
         with:
-          command: install
-          args: --force grcov
-      - uses: actions-rs/cargo@v1
-        if: ${{ runner.os != 'Windows' && env.WITH_COVERAGE == 'true' }}
-        name: Build debug binary
-        with:
-          command: build
+          auto-install: true
+          cache: ${{ runner.os == 'Linux' }}
+          proto-version: '0.45.2' # Keep in sync
+      # Fixes issues where proto can't find a version because nothing is pinned globally
+      - run: cp .prototools ~/.proto/.prototools
+        if: ${{ runner.os == 'Linux' }}
+      - uses: mozilla-actions/sccache-action@v0.0.7
+        if: ${{ vars.ENABLE_SCCACHE == 'true' }}
+      - uses: lukka/get-cmake@latest
+        if: ${{ runner.os == 'Windows' }}
+      - name: Checking coverage status
+        id: coverage
+        shell: bash
+        run: echo "coverage=$WITH_COVERAGE" >> $GITHUB_OUTPUT
         env:
-          RUSTFLAGS: -Cinstrument-coverage
-      - uses: marcopolo/cargo@master
-        name: Setup moon toolchain
-        env:
-          MOON_TEST: true
-        with:
-          command: run
-          args: -- --log debug setup
-          working-directory: ./tests/fixtures/cases
-      - uses: actions-rs/cargo@v1
-        if: ${{ runner.os != 'Windows' && env.WITH_COVERAGE == 'true' }}
-        name: Run tests with coverage
-        with:
-          command: test
-          args: --workspace
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
-          LLVM_PROFILE_FILE: ${{ github.workspace }}/moon-%p-%m.profraw
-      - uses: actions-rs/cargo@v1
-        if: ${{ runner.os == 'Windows' || env.WITH_COVERAGE == 'false' }}
-        name: Run tests
-        with:
-          command: test
-          args: --workspace
+          WITH_COVERAGE: false
+          # Disabled coverage is it doesn't work well in Linux/Windows
+          # WITH_COVERAGE:
+          #   ${{ (github.event_name == 'pull_request' && contains(github.head_ref, 'develop-') ||
+          #   github.event_name == 'push' && github.ref_name == 'master') && runner.os != 'Linux' }}
+      - name: Run tests
+        if: ${{ steps.coverage.outputs.coverage == 'false' }}
+        run: just test-ci
+      - name: Run tests with coverage
+        if: ${{ steps.coverage.outputs.coverage == 'true' }}
+        run: just cov
       - name: Generate code coverage
-        if: ${{ runner.os != 'Windows' && env.WITH_COVERAGE == 'true' }}
-        run: |
-          grcov . -s ./crates --binary-path ./target/debug -t lcov --branch --ignore-not-existing -o ./report.txt
-      - uses: actions/upload-artifact@v2
-        if: ${{ runner.os != 'Windows' && env.WITH_COVERAGE == 'true' }}
-        name: Upload coverage report
+        if: ${{ steps.coverage.outputs.coverage == 'true' }}
+        run: just gen-report
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: ${{ steps.coverage.outputs.coverage == 'true' }}
         with:
-          name: coverage-${{ matrix.os }}
+          name: coverage-${{ runner.os }}
           path: ./report.txt
           if-no-files-found: error
   coverage:
-    if: ${{ contains(github.head_ref, 'develop-') || endsWith(github.ref, 'master') }}
+    if:
+      ${{ github.event_name == 'pull_request' && contains(github.head_ref, 'develop-') ||
+      github.event_name == 'push' && github.ref_name == 'master' }}
     name: Code coverage
     runs-on: ubuntu-latest
     needs:
       - test
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         name: Download coverage reports
         with:
           path: coverage
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v4
         name: Upload to Codecov
         with:
-          files: ./coverage/coverage-ubuntu-latest/report.txt,./coverage/coverage-macos-latest/report.txt
+          # files: ./coverage/coverage-Linux/report.txt,./coverage/coverage-macOS/report.txt,./coverage/coverage-Windows/report.txt
+          files: ./coverage/coverage-macOS/report.txt,./coverage/coverage-Windows/report.txt
           flags: rust
+          token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true

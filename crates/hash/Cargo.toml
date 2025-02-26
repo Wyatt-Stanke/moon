@@ -1,0 +1,21 @@
+[package]
+name = "moon_hash"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Content hashing engine."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+miette = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
+starbase_utils = { workspace = true, features = ["json"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+
+[lints]
+workspace = true

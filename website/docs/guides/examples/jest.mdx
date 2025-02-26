@@ -4,10 +4,9 @@ sidebar_label: Jest
 ---
 
 import AddDepsTabs from '@site/src/components/AddDepsTabs';
+import HeadingApiLink from '@site/src/components/Docs/HeadingApiLink';
 
-> Jest has been prototyped in our
-> [examples repository](https://github.com/moonrepo/examples/blob/master/.moon/project.yml#L83),
-> check it out!
+<HeadingApiLink to="https://github.com/moonrepo/examples/blob/master/.moon/tasks/node.yml#L83" />
 
 In this guide, you'll learn how to integrate [Jest](https://jestjs.io/) into moon.
 
@@ -19,33 +18,33 @@ repository.
 ## Setup
 
 Since testing is a universal workflow, add a `test` task to
-[`.moon/project.yml`](../../config/global-project) with the following parameters.
+[`.moon/tasks/node.yml`](../../config/tasks) with the following parameters.
 
-```yaml title=".moon/project.yml"
+```yaml title=".moon/tasks/node.yml"
 tasks:
-	test:
-		command:
-			- 'jest'
-			# Always run code coverage
-			- '--coverage'
-			# Dont fail if a project has no tests
-			- '--passWithNoTests'
-		inputs:
-			# Source and test files
-			- 'src/**/*'
-			- 'tests/**/*'
-			# Project configs, any format
-			- 'jest.config.*'
+  test:
+    command:
+      - 'jest'
+      # Always run code coverage
+      - '--coverage'
+      # Dont fail if a project has no tests
+      - '--passWithNoTests'
+    inputs:
+      # Source and test files
+      - 'src/**/*'
+      - 'tests/**/*'
+      # Project configs, any format
+      - 'jest.config.*'
 ```
 
 Projects can extend this task and provide additional parameters if need be, for example.
 
 ```yaml title="<project>/moon.yml"
 tasks:
-	test:
-		args:
-			# Disable caching for this project
-			- '--no-cache'
+  test:
+    args:
+      # Disable caching for this project
+      - '--no-cache'
 ```
 
 ## Configuration

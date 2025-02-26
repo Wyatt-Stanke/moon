@@ -3,9 +3,8 @@
   "private": true,
   "workspaces": [
     "base",
-    "esbuild",
     "lifecycles",
-    "swc",
+    "postinstall-recursion",
     "version-override"
   ]
 }

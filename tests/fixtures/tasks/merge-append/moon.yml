@@ -1,8 +1,8 @@
 tasks:
   standard:
-    type: system
+    platform: system
     deps:
-      - b:standard
+      - buildB:build
     args:
       - --b
     inputs:

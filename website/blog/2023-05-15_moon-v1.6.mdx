@@ -1,0 +1,114 @@
+---
+slug: moon-v1.6
+title: moon v1.6 - Persistent tasks and task extending RFC
+authors: [milesj]
+tags: [tasks, rfc, log]
+image: ./img/moon/v1.6.png
+---
+
+import Button from '@site/src/ui/Button';
+
+In this release, we're introducing a new feature called persistent tasks, and an RFC for extending
+tasks.
+
+<!--truncate-->
+
+## RFC: Task extending/variants
+
+Before we dive into this release, we want to briefly talk about a new RFC that we're looking for
+feedback on, [task extending/variants](https://github.com/moonrepo/moon/issues/849). This is a
+feature that has been top-of-mind since moon's inception, but we haven't had the foundation in place
+to support it, nor what the API should look like.
+
+The gist of the RFC is that we want to support tasks that extend other tasks with additional
+arguments. This is a common workflow with npm scripts:
+
+```json
+{
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "npm run lint --fix"
+  }
+}
+```
+
+As consumers of moon, we'd appreciate any feedback on the RFC before we move forward!
+
+<div class="flex justify-center">
+  <Button label="View RFC" href="https://github.com/moonrepo/moon/issues/849" size="lg" />
+</div>
+
+## Persistent tasks
+
+Tasks that never complete, like servers and watchers, are known as persistent tasks. Historically we
+had support for these kinds of tasks through the [`local`](/docs/config/project#local) setting in
+[`moon.yml`](/docs/config/project). This setting would modify the task for continuous execution by
+disabling caching, streaming output, and not running in CI.
+
+While this worked for the most part, there was one scenario that was still problematic, and that was
+running multiple persistent tasks in parallel. Depending on the task dependency chain, sometimes
+these tasks would _not_ run in parallel, some may never start (blocked on another tasks), or the
+order of nodes in the graph is non-ideal. A great example of this can be found in this
+[discussion thread](https://github.com/moonrepo/moon/discussions/830).
+
+To mitigate this problem, we're introducing a new task option,
+[`persistent`](/docs/config/project#persistent) (which is also enabled by the `local` setting). When
+a task is marked as persistent, it will always _run last and in parallel_ within the dependency
+graph, after all dependencies (from all other persistent tasks) have completed.
+
+```yaml title="moon.yml"
+tasks:
+  dev:
+    command: 'next dev'
+    local: true
+    # OR
+    options:
+      persistent: true
+```
+
+This is a perfect solution to running multiple development servers and tools in watch mode:
+
+```yaml title="moon.yml"
+tasks:
+  dev:
+    command: 'noop'
+    deps:
+      - 'frontend:dev'
+      - 'backend:dev'
+      - 'database:start'
+      - 'tailwind:watch'
+```
+
+## Logging migration
+
+This is more of a heads up than anything, but we've started an internal Rust migration from the old
+[log](https://crates.io/crates/log) crate to the new [tracing](https://crates.io/crates/tracing)
+crate. Tracing provides is with far more information, metrics, and instrumentation, which we hope to
+take advantage of in the future.
+
+This will be an ongoing migration that will last for many releases, and during this time while we
+support both `log` and `tracing` in unison, the logs will be a bit noisy. We'll be working to clean
+up the logs as we gradually convert the codebase.
+
+And lastly, the move to `tracing` has also caused the log output to change. For example, in the log
+excerpt below, all messages with "log" after the date are the old `log` crate, while the others with
+distinct module names are the new `tracing` crate.
+
+```log
+[DEBUG 14:44:19] moon_process::command_inspector  Running command git status --porcelain --untracked-files -z  env_vars={} working_dir="~/Projects/moon"
+[DEBUG 14:44:19] log  Filtering based on touched status "all"  log.target="moon:query:touched-files" log.module_path="moon_cli::queries::touched_files" log.file="crates/cli/src/queries/touched_files.rs" log.line=85
+[DEBUG 14:44:19] log  Creating dependency graph  log.target="moon:dep-graph" log.module_path="moon_dep_graph::dep_builder" log.file="crates/core/dep-graph/src/dep_builder.rs" log.line=35
+[DEBUG 14:44:19] log  Running 32 actions across 5 batches  log.target="moon:action-pipeline" log.module_path="moon_action_pipeline::pipeline" log.file="crates/core/action-pipeline/src/pipeline.rs" log.line=93
+[DEBUG 14:44:19] log  Setting up Node.js 20.0.0 toolchain  log.target="moon:action:setup-tool" log.module_path="moon_action_pipeline::actions::setup_tool" log.file="crates/core/action-pipeline/src/actions/setup_tool.rs" log.line=26
+[DEBUG 14:44:19] proto_node::resolve  Resolving a semantic version for "20.0.0"
+[DEBUG 14:44:19] proto_core::resolver:load_versions_manifest  Loading versions manifest from local cache  cache_file=~/.proto/temp/3d16d1693e83828f98bae178f181d5a01103b7f222db27cdeaec9b4950e951d7.json
+```
+
+## Other changes
+
+View the [official release](https://github.com/moonrepo/moon/releases/tag/v1.6.0) for a full list of
+changes.
+
+- Updated long running processes to log a checkpoint indicating it's still running.
+- Reworked file groups to use workspace relative paths, instead of project relative.
+- Reworked processes to better handle command line arguments, shells, and piped stdin input.

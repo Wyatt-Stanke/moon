@@ -1,0 +1,39 @@
+[package]
+name = "moon_actions"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[dependencies]
+moon_action = { path = "../action" }
+moon_action_context = { path = "../action-context" }
+moon_app_context = { path = "../app-context" }
+moon_cache_item = { path = "../cache-item" }
+moon_codeowners = { path = "../codeowners" }
+moon_common = { path = "../common" }
+moon_config = { path = "../config" }
+moon_config_schema = { path = "../config-schema" }
+moon_hash = { path = "../hash" }
+moon_pdk_api = { path = "../pdk-api" }
+moon_process = { path = "../process" }
+moon_project = { path = "../project" }
+moon_remote = { path = "../remote" }
+moon_task_runner = { path = "../task-runner" }
+moon_time = { path = "../time" }
+moon_toolchain_plugin = { path = "../toolchain-plugin" }
+moon_vcs_hooks = { path = "../vcs-hooks" }
+moon_workspace_graph = { path = "../workspace-graph" }
+miette = { workspace = true }
+proto_core = { workspace = true }
+rustc-hash = { workspace = true }
+scc = { workspace = true }
+serde = { workspace = true }
+starbase_utils = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+# TODO REMOVE
+moon_platform = { path = "../../legacy/core/platform" }
+
+[lints]
+workspace = true

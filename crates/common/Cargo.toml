@@ -1,0 +1,24 @@
+[package]
+name = "moon_common"
+version = "0.0.11"
+edition = "2021"
+license = "MIT"
+description = "Common utilities."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = true
+
+[dependencies]
+compact_str = { workspace = true }
+dirs = { workspace = true }
+miette = { workspace = true }
+relative-path = { workspace = true, features = ["serde"] }
+regex = { workspace = true }
+rustc-hash = { workspace = true }
+schematic = { workspace = true }
+serde = { workspace = true }
+starbase_styles = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

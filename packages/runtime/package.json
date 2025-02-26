@@ -1,28 +1,27 @@
 {
   "name": "@moonrepo/runtime",
-  "version": "0.0.9",
+  "version": "0.0.16",
   "type": "commonjs",
-  "description": "Action runner and runtime utilities.",
+  "description": "Action pipeline and runtime utilities.",
   "keywords": [
     "moon",
     "repo",
     "task",
-    "runner",
+    "pipeline",
     "runtime"
   ],
   "author": "Miles Johnson",
   "license": "MIT",
   "main": "./cjs/index.cjs",
-  "types": "./dts/index.d.ts",
+  "types": "./cjs/index.d.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/moonrepo/moon",
     "directory": "packages/runtime"
   },
   "files": [
-    "cjs/**/*.{cjs,mjs,map}",
-    "dts/**/*.d.ts",
-    "src/**/*.{ts,tsx,json}"
+    "cjs/**/*",
+    "src/**/*"
   ],
   "packemon": {
     "format": "cjs",
@@ -30,21 +29,18 @@
     "bundle": true
   },
   "dependencies": {
-    "@boost/common": "^4.0.0",
+    "@boost/common": "^4.1.0",
     "@moonrepo/types": "workspace:^"
   },
   "engines": {
-    "node": ">=14.15.0",
-    "npm": ">=6.14.0"
+    "node": ">=16.12.0"
   },
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "types": "./dts/index.d.ts",
-      "node": {
-        "import": "./cjs/index-wrapper.mjs",
-        "require": "./cjs/index.cjs"
-      }
+      "types": "./cjs/index.d.ts",
+      "import": "./cjs/index-wrapper.mjs",
+      "default": "./cjs/index.cjs"
     }
   }
 }

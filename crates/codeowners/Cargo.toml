@@ -1,0 +1,23 @@
+[package]
+name = "moon_codeowners"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "CODEOWNERS management."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+moon_config = { path = "../config" }
+moon_hash = { path = "../hash" }
+miette = { workspace = true }
+serde = { workspace = true }
+starbase_utils = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+starbase_sandbox = { workspace = true }
+
+[lints]
+workspace = true

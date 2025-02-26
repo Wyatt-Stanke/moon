@@ -1,5 +1,5 @@
 ---
-title: template.yml
+title: template.{pkl,yml}
 toc_max_heading_level: 6
 ---
 
@@ -7,10 +7,30 @@ import HeadingApiLink from '@site/src/components/Docs/HeadingApiLink';
 import RequiredLabel from '@site/src/components/Docs/RequiredLabel';
 import VersionLabel from '@site/src/components/Docs/VersionLabel';
 
-<VersionLabel header version="0.14" />
-
 The `template.yml` file configures metadata and variables for a template,
 [used by the generator](../guides/codegen), and must exist at the root of a named template folder.
+
+```yaml title="template.yml"
+$schema: 'https://moonrepo.dev/schemas/template.json'
+```
+
+:::info
+
+Template configuration can also be written in [Pkl](../guides/pkl-config) instead of YAML.
+
+:::
+
+## `id`<VersionLabel version="1.23.0" />
+
+<HeadingApiLink to="/api/types/interface/TemplateConfig#id" />
+
+Overrides the name (identifier) of the template, instead of inferring the name from the template
+folder. Be aware that template names must be unique across the workspace, and across all template
+locations that have been configured in [`generator.templates`](./workspace#templates).
+
+```yaml title="template.yml"
+id: 'npm-package'
+```
 
 ## `title`<RequiredLabel />
 
@@ -31,8 +51,37 @@ A description of why the template exists, what its purpose is, and any other rel
 
 ```yaml title="template.yml"
 description: |
-	Scaffolds the initial structure for an npm package,
-	including source and test folders, a package.json, and more.
+  Scaffolds the initial structure for an npm package,
+  including source and test folders, a package.json, and more.
+```
+
+## `destination`<VersionLabel version="1.19.0" />
+
+<HeadingApiLink to="/api/types/interface/TemplateConfig#destination" />
+
+An optional file path in which this template should be generated into. This provides a mechanism for
+standardizing a destination location, and avoids having to manually pass a destination to
+[`moon generate`](../commands/generate).
+
+If the destination is prefixed with `/`, it will be relative from the workspace root, otherwise it
+is relative from the current working directory.
+
+```yaml title="template.yml"
+destination: 'packages/[name]'
+```
+
+> This setting supports [template variables](#variables) through `[varName]` syntax. Learn more in
+> the [code generation documentation](../guides/codegen#interpolation).
+
+## `extends`<VersionLabel version="1.19.0" />
+
+<HeadingApiLink to="/api/types/interface/TemplateConfig#extends" />
+
+One or many other templates that this template should extend. Will deeply inherit all template files
+and variables.
+
+```yaml title="template.yml"
+extends: ['base', 'configs']
 ```
 
 ## `variables`
@@ -46,51 +95,65 @@ settings below.
 
 ```yaml title="template.yml"
 variables:
-	name:
-		type: 'string'
-		default: ''
-		required: true
-		prompt: 'Package name?'
+  name:
+    type: 'string'
+    default: ''
+    required: true
+    prompt: 'Package name?'
 ```
-
-### `default`<RequiredLabel />
-
-<HeadingApiLink to="/api/types/interface/TemplateVariableConfig#default" />
-
-The default value of the variable. When `--defaults` is passed to
-[`moon generate`](../commands/generate) or [`prompt`](#prompt) is not defined, the default value
-will be used, otherwise the user will be prompted to enter a custom value.
-
-### `prompt`<RequiredLabel text="Required for enums" />
-
-<HeadingApiLink to="/api/types/interface/TemplateVariableConfig#prompt" />
-
-When defined, will prompt the user with a message in the terminal to input a custom value, otherwise
-[`default`](#default) will be used.
 
 ### `type`<RequiredLabel />
 
 The type of value for the variable. Accepts `boolean`, `string`, `number`, or `enum`. Floats _are
 not supported_, use strings instead.
 
-### Numbers & strings
+### `internal`<VersionLabel version="1.23.0" />
 
-Your basic primitives.
+<HeadingApiLink to="/api/types/interface/TemplateVariableStringSetting#internal" />
+
+Marks a variable as internal only, which avoids the variable value being overwritten by command line
+arguments.
+
+### `order`<VersionLabel version="1.23.0" />
+
+<HeadingApiLink to="/api/types/interface/TemplateVariableStringSetting#order" />
+
+The order in which the variable will be prompted to the user. By default, variables are prompted in
+the order they are defined in the `template.yml` file.
+
+### Primitives
+
+Your basic primitives: boolean, numbers, strings.
+
+### `default`<RequiredLabel />
+
+<HeadingApiLink to="/api/types/interface/TemplateVariableStringSetting#default" />
+
+The default value of the variable. When `--defaults` is passed to
+[`moon generate`](../commands/generate) or [`prompt`](#prompt) is not defined, the default value
+will be used, otherwise the user will be prompted to enter a custom value.
+
+### `prompt`
+
+<HeadingApiLink to="/api/types/interface/TemplateVariableStringSetting#prompt" />
+
+When defined, will prompt the user with a message in the terminal to input a custom value, otherwise
+[`default`](#default) will be used.
 
 ### `required`
 
-<HeadingApiLink to="/api/types/interface/TemplateVariableConfig#required" />
+<HeadingApiLink to="/api/types/interface/TemplateVariableStringSetting#required" />
 
 Marks the variable as required during _prompting only_. For strings, will error for empty values
 (`''`). For numbers, will error for zero's (`0`).
 
 ```yaml title="template.yml"
 variables:
-	age:
-		type: 'number'
-		default: 0
-		required: true
-		prompt: 'Age?'
+  age:
+    type: 'number'
+    default: 0
+    required: true
+    prompt: 'Age?'
 ```
 
 ### Enums
@@ -99,12 +162,50 @@ An enum is an explicit list of string values that a user can choose from.
 
 ```yaml title="template.yml"
 variables:
-	color:
-		type: 'enum'
-		values: ['red', 'green', 'blue', 'purple']
-		default: 'purple'
-		prompt: 'Favorite color?'
+  color:
+    type: 'enum'
+    values: ['red', 'green', 'blue', 'purple']
+    default: 'purple'
+    prompt: 'Favorite color?'
 ```
+
+### `default`
+
+<HeadingApiLink to="/api/types/interface/TemplateVariableConfig#default" />
+
+The default value of the variable. When `--defaults` is passed to
+[`moon generate`](../commands/generate) or [`prompt`](#prompt) is not defined, the default value
+will be used, otherwise the user will be prompted to enter a custom value.
+
+For enums, the default value can be a string when [`multiple`](#multiple) is false, or a string or
+an array of strings when `multiple` is true. Furthermore, each default value must exist in the
+[`values`](#values) list.
+
+```yaml title="template.yml"
+# Single
+variables:
+  color:
+    type: 'enum'
+    values: ['red', 'green', 'blue', 'purple']
+    default: 'purple'
+    prompt: 'Favorite color?'
+
+# Multiple
+variables:
+  color:
+    type: 'enum'
+    values: ['red', 'green', 'blue', 'purple']
+    default: ['red', 'purple']
+    multiple: true
+    prompt: 'Favorite color?'
+```
+
+### `prompt`
+
+<HeadingApiLink to="/api/types/interface/TemplateVariableConfig#prompt" />
+
+When defined, will prompt the user with a message in the terminal to input a custom value, otherwise
+[`default`](#default) will be used.
 
 ### `multiple`
 
@@ -117,9 +218,22 @@ rendered, otherwise when not-multiple, a single string will be.
 
 <HeadingApiLink to="/api/types/interface/TemplateEnumVariableConfig#values" />
 
-List of explicit values to choose from.
+List of explicit values to choose from. Can either be defined with a string, which acts as a value
+and label, or as an object, which defines an explicit value and label.
 
-## Frontmatter<VersionLabel version="0.15" />
+```yaml title="template.yml"
+variables:
+  color:
+    type: 'enum'
+    values:
+      - 'red'
+      # OR
+      - value: 'red'
+        label: 'Red 🔴'
+    # ...
+```
+
+## Frontmatter
 
 The following settings _are not_ available in `template.yml`, but can be defined as frontmatter at
 the top of a template file. View the [code generation guide](../guides/codegen#frontmatter) for more
@@ -156,7 +270,7 @@ to: components/{{ component_name }}.tsx
 ---
 
 export function {{ component_name }}() {
-	return <div />;
+  return <div />;
 }
 ```
 

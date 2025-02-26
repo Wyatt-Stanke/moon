@@ -1,0 +1,7 @@
+extends: './base-0.yml'
+
+runner:
+  logRunningCommand: true
+
+vcs:
+  provider: 'bitbucket'

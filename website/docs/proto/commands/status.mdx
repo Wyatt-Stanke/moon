@@ -1,0 +1,38 @@
+---
+title: status
+---
+
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
+
+<VersionLabel version="0.34.0" header />
+
+The `proto status` command will list all tools that are currently active for a target directory,
+what versions of those tools are resolved to, and the configuration file in which they are defined.
+
+```
+$ proto status
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Tool      Configured Resolved  Installed                           Config                             │
+│───────────────────────────────────────────────────────────────────────────────────────────────────────│
+│ bun       1.1.42     1.1.42    /Users/name/.proto/tools/          /Users/name/.proto/.prototools      │
+│                                bun/1.1.42                                                             │
+│ deno      1.43.1     1.43.1    /Users/name/.proto/tools/          /Users/name/.proto/.prototools      │
+│                                deno/1.43.1                                                            │
+│ node      23.5.0     23.5.0    /Users/name/.proto/tools/          /Users/name/.proto/.prototools      │
+│                                node/23.5.0                                                            │
+│ npm       ~10.7      10.7.0    /Users/name/.proto/tools/          /Users/name/.proto/.prototools      │
+│                                npm/10.7.0                                                             │
+│ python    3.12.0     3.12.0    /Users/name/.proto/tools/          /Users/name/.proto/.prototools      │
+│                                python/3.12.0                                                          │
+│ yarn      3.6.3      3.6.3     /Users/name/.proto/tools/          /Users/name/.proto/.prototools      │
+│                                yarn/3.6.3                                                             │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+> By default, this command _does not_ check tools for versions pinned in the global
+> `~/.proto/.prototools` file. Pass `--config-mode all` to include them.
+
+### Options
+
+- `--json` - Print the list in JSON format.

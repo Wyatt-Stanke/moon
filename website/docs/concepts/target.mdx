@@ -2,8 +2,10 @@
 title: Targets
 ---
 
-A target is an identifier that pairs a [project](./project) to one of its [tasks](./task), in the
-format of `project_name_or_alias:task_name`.
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
+
+A target is a compound identifier that pairs a [scope](#common-scopes) to a [task](./task),
+separated by a `:`, in the format of `scope:task`.
 
 Targets are used by terminal commands...
 
@@ -21,82 +23,108 @@ tasks:
       - 'designSystem:build'
 ```
 
-## Project scopes
+## Common scopes
 
-While a target typically pairs project and task names, we also support advanced targets through a
-concept known as project scopes. Scopes allow us to easily define targets with external or many
-sources, but _are not available in all contexts_.
+These scopes are available for both running targets and configuring them.
 
-### All projects
+### By project
 
-> Only available on the command line when running targets.
-
-For situations where you want to run a specific target in _all_ projects, for example `lint`ing, you
-can utilize the all projects scope by omitting the project from the target: `:lint`.
+The most common scope is the project scope, which requires the name of a project, as defined in
+[`.moon/workspace.yml`](../config/workspace). When paired with a task name, it will run a specific
+task from that project.
 
 ```shell
 # Run `lint` in project `app`
 $ moon run app:lint
+```
 
+### By tag<VersionLabel version="1.4.0" />
+
+Another way to target projects is with the tag scope, which requires the name of a tag prefixed with
+`#`, and will run a specific task in all projects with that tag.
+
+```shell
+# Run `lint` in projects with the tag `frontend`
+$ moon run '#frontend:lint'
+```
+
+:::caution
+
+Because `#` is a special character in the terminal (is considered a comment), you'll need to wrap
+the target in quotes, or escape it like so `\#`.
+
+:::
+
+## Run scopes
+
+These scopes are only available on the command line when running targets.
+
+### All projects
+
+For situations where you want to run a specific target in _all_ projects, for example `lint`ing, you
+can utilize the all projects scope by omitting the project name from the target: `:lint`.
+
+```shell
 # Run `lint` in all projects
 $ moon run :lint
 ```
 
+## Config scopes
+
+These scopes are only available when configuring a task.
+
 ### Dependencies `^`
 
-> Only available when configuring a task.
-
-When you want to include a reference for each project in your
-[`dependsOn`](../config/project#dependson) list, you can utilize the `^` scope. This will be
-expanded to _all_ depended on projects. If you do not want all projects, then you'll need to
-explicitly define them.
+When you want to include a reference for each project [that's depended on](./project#dependencies),
+you can utilize the `^` scope. This will be expanded to _all_ depended on projects. If you do not
+want all projects, then you'll need to explicitly define them.
 
 ```yaml title="moon.yml"
 dependsOn:
-	- 'apiClients'
-	- 'designSystem'
+  - 'apiClients'
+  - 'designSystem'
 
 # Configured as
 tasks:
-	build:
-		command: 'webpack'
-		deps:
-			- '^:build'
+  build:
+    command: 'webpack'
+    deps:
+      - '^:build'
 
 # Resolves to
 tasks:
-	build:
-		command: 'webpack'
-		deps:
-			- 'apiClients:build'
-			- 'designSystem:build'
+  build:
+    command: 'webpack'
+    deps:
+      - 'apiClients:build'
+      - 'designSystem:build'
 ```
 
 ### Self `~`
 
-> Only available when configuring a task.
+When referring to another task within the current project, you can utilize the `~` scope, or emit
+the `~:` prefix altogether, which will be expanded to the current project's name. This is useful for
+situations where the name is unknown, for example, when configuring
+[`.moon/tasks.yml`](../config/tasks), or if you just want a shortcut!
 
-When referring to another task within the current project, you can utilize the `~` scope, which will
-be expanded to the current project's name. This is useful for situations where the name is unknown,
-for example, when configuring [`.moon/project.yml`](../config/global-project). Or if you just want a
-shortcut!
-
-```yaml title=".moon/project.yml"
+```yaml title=".moon/tasks.yml"
 # Configured as
 tasks:
-	lint:
-		command: 'eslint'
-		deps:
-			- '~:typecheck'
-	typecheck:
-		command: 'tsc'
+  lint:
+    command: 'eslint'
+    deps:
+      - '~:typecheck'
+      # OR
+      - 'typecheck'
+  typecheck:
+    command: 'tsc'
 
 # Resolves to (assuming project is "foo")
 tasks:
-	lint:
-		command: 'eslint'
-		deps:
-			- 'foo:typecheck'
-	typecheck:
-		command: 'tsc'
+  lint:
+    command: 'eslint'
+    deps:
+      - 'foo:typecheck'
+  typecheck:
+    command: 'tsc'
 ```

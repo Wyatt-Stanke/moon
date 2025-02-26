@@ -2,11 +2,7 @@
 title: Root-level project
 ---
 
-import VersionLabel from '@site/src/components/Docs/VersionLabel';
-
-<VersionLabel header version="0.9" />
-
-Coming from other repositories or build systems, you may be familiar with tasks available at the
+Coming from other repositories or task runner, you may be familiar with tasks available at the
 repository root, in which one-off, organization, maintenance, or process oriented tasks can be ran.
 moon supports this through a concept known as a root-level project.
 
@@ -32,11 +28,11 @@ can define tasks that can be ran using this new root-level project name, for exa
 
 ```yaml title="moon.yml"
 tasks:
-	versionCheck:
-		command: 'yarn version check'
-		inputs: []
-		options:
-			cache: false
+  versionCheck:
+    command: 'yarn version check'
+    inputs: []
+    options:
+      cache: false
 ```
 
 And that's it, but there are a few caveats to be aware of...
@@ -45,26 +41,33 @@ And that's it, but there are a few caveats to be aware of...
 
 ### Greedy inputs
 
+:::warning
+
+In moon v1.24, root-level tasks default to no inputs. In previous versions, inputs defaulted to
+`**/*`. This section is only applicable for older moon versions!
+
+:::
+
 Task [`inputs`](../config/project#inputs) default to `**/*`, which would result in root-level tasks
 scanning _all_ files in the repository. This will be a very expensive operation! We suggest
 restricting inputs to a very succinct whitelist, or disabling inputs entirely.
 
 ```yaml title="moon.yml"
 tasks:
-	oneOff:
-		# ...
-		inputs: []
+  oneOff:
+    # ...
+    inputs: []
 ```
 
 ### Inherited tasks
 
 Because a root project is still a project in the workspace, it will inherit all tasks defined in
-[`.moon/project.yml`](../config/global-project), which may be not what you want. To mitigate this,
-you can exclude some or all of these tasks in the root config with
+[`.moon/tasks.yml`](../config/tasks), which may be unexpected. To mitigate this, you can exclude
+some or all of these tasks in the root config with
 [`workspace.inheritedTasks`](../config/project#inheritedtasks).
 
 ```yaml title="moon.yml"
 workspace:
-	inheritedTasks:
-		include: []
+  inheritedTasks:
+    include: []
 ```

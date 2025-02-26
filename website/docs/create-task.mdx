@@ -4,49 +4,78 @@ title: Create a task
 
 import HeaderLabel from '@site/src/components/Docs/HeaderLabel';
 import NextSteps from '@site/src/components/NextSteps';
+import LangPartials from '@site/src/components/LangPartials';
 
-<HeaderLabel text="10 min" />
+<HeaderLabel text="6 min" />
 
-The primary focus of moon is a build system, and for it to operate in any capacity, it requires
-tasks to run. In moon, a task is an npm binary or system command that is ran as a child process
-within the context of a project (is the current working directory). Tasks are defined per project
-with [`moon.yml`](./config/project), or inherited by all projects with
-[`.moon/project.yml`](./config/global-project), but can also be inferred from `package.json` scripts
+The primary focus of moon is a task runner, and for it to operate in any capacity, it requires tasks
+to run. In moon, a task is a binary or system command that is ran as a child process within the
+context of a project (is the current working directory). Tasks are defined per project with
+[`moon.yml`](./config/project), or inherited by many projects with
+[`.moon/tasks.yml`](./config/tasks), but can also be inferred from a language's ecosystem
 ([we'll talk about this later](./migrate-to-moon)).
+
+:::tip
+
+Change the language dropdown at the top right to switch the examples!
+
+:::
 
 ## Configuring a task
 
-Most -- if not all projects -- utilize the same core tasks: linting, testing, code formatting, and
-type-checking. Because these are so universal, let's implement the type-checking task in
-[`.moon/project.yml`](./config/global-project), which will be inherited by all projects.
+Most — if not all projects — utilize the same core tasks: linting, testing, code formatting,
+typechecking, and _building_. Because these are so universal, let's implement the build task within
+a project using [`moon.yml`](./config/project).
 
-> This section assumes that `typescript` is installed as a dependency in your root, and that all
-> `tsconfig.json` files have been setup correctly.
+Begin by creating the `moon.yml` file at the root of a project and add `build` to the
+[`tasks`](./config/project#tasks) field, with a [`command`](./config/project#command) parameter.
 
-Begin by adding a `typecheck` field to the [`tasks`](./config/project#tasks) setting. This task will
-use [TypeScript](https://www.typescriptlang.org/) and run `tsc` under the hood, since we defined the
-[`command`](./config/project#command) setting.
+import BaseBun from './__partials__/create-task/bun/base.mdx';
+import BaseDeno from './__partials__/create-task/deno/base.mdx';
+import BaseGo from './__partials__/create-task/go/base.mdx';
+import BaseNode from './__partials__/create-task/node/base.mdx';
+import BasePHP from './__partials__/create-task/php/base.mdx';
+import BasePython from './__partials__/create-task/python/base.mdx';
+import BaseRuby from './__partials__/create-task/ruby/base.mdx';
+import BaseRust from './__partials__/create-task/rust/base.mdx';
 
-```yaml title=".moon/project.yml" {2,3}
-tasks:
-	typecheck:
-		command: 'tsc'
-```
+<LangPartials>
+  <BaseBun key="bun" />
+  <BaseDeno key="deno" />
+  <BaseGo key="go" />
+  <BaseNode key="node" />
+  <BasePHP key="php" />
+  <BasePython key="python" />
+  <BaseRuby key="ruby" />
+  <BaseRust key="rust" />
+</LangPartials>
 
-By itself, this isn't doing much. So let's add some arguments with the
-[`args`](./config/project#args) setting. We encourage everyone to use
-[TypeScript project references](https://www.typescriptlang.org/docs/handbook/project-references.html)
-for project boundaries and strict encapsulation, and as such, we'll use it below.
+By itself, this isn't doing much, so let's add some arguments. Arguments can also be defined with
+the [`args`](./config/project#args) setting.
 
-```yaml title=".moon/project.yml" {4}
-tasks:
-	typecheck:
-		command: 'tsc --build --verbose'
-```
+import ArgsBun from './__partials__/create-task/bun/args.mdx';
+import ArgsDeno from './__partials__/create-task/deno/args.mdx';
+import ArgsGo from './__partials__/create-task/go/args.mdx';
+import ArgsNode from './__partials__/create-task/node/args.mdx';
+import ArgsPHP from './__partials__/create-task/php/args.mdx';
+import ArgsPython from './__partials__/create-task/python/args.mdx';
+import ArgsRuby from './__partials__/create-task/ruby/args.mdx';
+import ArgsRust from './__partials__/create-task/rust/args.mdx';
+
+<LangPartials>
+  <ArgsBun key="bun" />
+  <ArgsDeno key="deno" />
+  <ArgsGo key="go" />
+  <ArgsNode key="node" />
+  <ArgsPHP key="php" />
+  <ArgsPython key="python" />
+  <ArgsRuby key="ruby" />
+  <ArgsRust key="rust" />
+</LangPartials>
 
 With this, the task can be ran from the command line with
-[`moon run <project>:typecheck`](./commands/run)! This is tasks in its most simplest form, but
-continue reading on how to take full advantage of our build system.
+[`moon run <project>:build`](./commands/run)! This is tasks in its most simplest form, but continue
+reading on how to take full advantage of our task runner.
 
 ### Inputs
 
@@ -59,28 +88,34 @@ environment variables that are used by the task when it's ran. moon will use and
 inputs to calculate whether to run, or to return the previous run state from the cache.
 
 If you're a bit confused, let's demonstrate this by expanding the task with the
-[`inputs`](./config/project#inputs) setting. Since this is TypeScript, we expect a `tsconfig.json`
-to exist in the project, and probably in the workspace root too.
+[`inputs`](./config/project#inputs) setting.
 
-```yaml title=".moon/project.yml" {5-11}
-tasks:
-	typecheck:
-		command: 'tsc --build --verbose'
-		inputs:
-			- 'src/**/*'
-			- 'tests/**/*'
-			- 'types/**/*'
-			- 'tsconfig.json'
-			- '/tsconfig.*.json'
-			- '/tsconfig.json'
-```
+import InputsBun from './__partials__/create-task/bun/inputs.mdx';
+import InputsDeno from './__partials__/create-task/deno/inputs.mdx';
+import InputsGo from './__partials__/create-task/go/inputs.mdx';
+import InputsNode from './__partials__/create-task/node/inputs.mdx';
+import InputsPHP from './__partials__/create-task/php/inputs.mdx';
+import InputsPython from './__partials__/create-task/python/inputs.mdx';
+import InputsRuby from './__partials__/create-task/ruby/inputs.mdx';
+import InputsRust from './__partials__/create-task/rust/inputs.mdx';
+
+<LangPartials>
+  <InputsBun key="bun" />
+  <InputsDeno key="deno" />
+  <InputsGo key="go" />
+  <InputsNode key="node" />
+  <InputsPHP key="php" />
+  <InputsPython key="python" />
+  <InputsRuby key="ruby" />
+  <InputsRust key="rust" />
+</LangPartials>
 
 This list of inputs may look complicated, but they are merely run checks. For example, when moon
 detects a change in...
 
-- Any files within the `src`, `tests`, and `types` folders, relative from the project's root.
-- A `tsconfig.json` in the project's root.
-- A `tsconfig.json` or any `tsconfig.*.json` in the workspace root (denoted by the leading `/`).
+- Any files within the `src` folder, relative from the project's root.
+- A config file in the project's root.
+- A shared config file in the workspace root (denoted by the leading `/`).
 
 ...the task will be ran! If the change occurs _outside_ of the project or _outside_ the list of
 inputs, the task will _not_ be ran.
@@ -102,55 +137,48 @@ Now why is declaring outputs important? For incremental builds and smart caching
 encounters a build that has already been built, it hydrates all necessary outputs from the cache,
 then immediately exits. No more waiting for long builds!
 
-Continuing our example, since we're using TypeScript project references and it generates declaration
-files, we'll write them to a project local `dts` folder and mark it as an output. Let's expand our
-task with the [`outputs`](./config/project#outputs) setting.
+Continuing our example, let's route the built files and expand our task with the
+[`outputs`](./config/project#outputs) setting.
 
-```yaml title=".moon/project.yml" {12,13}
-tasks:
-	typecheck:
-		command: 'tsc --build --verbose'
-		inputs:
-			- 'src/**/*'
-			- 'tests/**/*'
-			- 'types/**/*'
-			- 'tsconfig.json'
-			- '/tsconfig.*.json'
-			- '/tsconfig.json'
-		outputs:
-			- 'dts'
-```
+import OutputsBun from './__partials__/create-task/bun/outputs.mdx';
+import OutputsDeno from './__partials__/create-task/deno/outputs.mdx';
+import OutputsGo from './__partials__/create-task/go/outputs.mdx';
+import OutputsNode from './__partials__/create-task/node/outputs.mdx';
+import OutputsPHP from './__partials__/create-task/php/outputs.mdx';
+import OutputsPython from './__partials__/create-task/python/outputs.mdx';
+import OutputsRuby from './__partials__/create-task/ruby/outputs.mdx';
+import OutputsRust from './__partials__/create-task/rust/outputs.mdx';
 
-```json title="tsconfig.json"
-{
-  // ...
-  "compilerOptions": {
-    // ...
-    "outDir": "dts"
-  }
-}
-```
+<LangPartials>
+  <OutputsBun key="bun" />
+  <OutputsDeno key="deno" />
+  <OutputsGo key="go" />
+  <OutputsNode key="node" />
+  <OutputsPHP key="php" />
+  <OutputsPython key="python" />
+  <OutputsRuby key="ruby" />
+  <OutputsRust key="rust" />
+</LangPartials>
 
 ## Depending on other tasks
 
-While not relating to our TypeScript example above, but is important to talk about, is the concept
-of task dependencies. For scenarios where you need run a task _before_ another task, as you're
-expecting some repository state or artifact to exist, can be achieved with the
-[`deps`](./config/project#deps) setting, which requires a list of [targets](./concepts/target):
+For scenarios where you need run a task _before_ another task, as you're expecting some repository
+state or artifact to exist, can be achieved with the [`deps`](./config/project#deps) setting, which
+requires a list of [targets](./concepts/target):
 
 - `<project>:<task>` - Full canonical target.
-- `~:<task>` - A task within the current project.
+- `~:<task>` or `<task>` - A task within the current project.
 - `^:<task>` - A task from all [depended on projects](./concepts/project#dependencies).
 
-```yaml
+```yaml title="<project>/moon.yml" {1,7,8}
 dependsOn:
-	# ...
+  # ...
 
 tasks:
-	build:
-		# ...
-		deps:
-			- '^:build'
+  build:
+    # ...
+    deps:
+      - '^:build'
 ```
 
 ## Using file groups
@@ -164,18 +192,15 @@ grouping of similar file types within a project using
 File groups are defined with the [`fileGroups`](./config/project#filegroups) setting, which maps a
 list of file paths/globs to a group, like so.
 
-```yaml title=".moon/project.yml"
+```yaml title="<project>/moon.yml"
 fileGroups:
-	configs:
-		- '*.config.js'
-		- 'tsconfig.json'
-		- '/tsconfig.*.json'
-		- '/tsconfig.json'
-	sources:
-		- 'src/**/*'
-		- 'types/**/*'
-	tests:
-		- 'tests/**/*'
+  configs:
+    - '*.config.js'
+  sources:
+    - 'src/**/*'
+    - 'types/**/*'
+  tests:
+    - 'tests/**/*'
 ```
 
 We can then replace the inputs in our task above with these new file groups using a syntax known as
@@ -183,17 +208,25 @@ We can then replace the inputs in our task above with these new file groups usin
 [`@files`](./concepts/token#files) token functions. Tokens are an advanced feature, so please refer
 to their documentation for more information!
 
-```yaml title=".moon/project.yml" {6-8}
-tasks:
-	typecheck:
-		command: 'tsc --build --verbose'
-		inputs:
-			- '@globs(sources)'
-			- '@globs(tests)'
-			- '@files(configs)'
-		outputs:
-			- 'dts'
-```
+import FilegroupsBun from './__partials__/create-task/bun/filegroups.mdx';
+import FilegroupsDeno from './__partials__/create-task/deno/filegroups.mdx';
+import FilegroupsGo from './__partials__/create-task/go/filegroups.mdx';
+import FilegroupsNode from './__partials__/create-task/node/filegroups.mdx';
+import FilegroupsPHP from './__partials__/create-task/php/filegroups.mdx';
+import FilegroupsPython from './__partials__/create-task/python/filegroups.mdx';
+import FilegroupsRuby from './__partials__/create-task/ruby/filegroups.mdx';
+import FilegroupsRust from './__partials__/create-task/rust/filegroups.mdx';
+
+<LangPartials>
+  <FilegroupsBun key="bun" />
+  <FilegroupsDeno key="deno" />
+  <FilegroupsGo key="go" />
+  <FilegroupsNode key="node" />
+  <FilegroupsPHP key="php" />
+  <FilegroupsPython key="python" />
+  <FilegroupsRuby key="ruby" />
+  <FilegroupsRust key="rust" />
+</LangPartials>
 
 With file groups (and tokens), you're able to reduce the amount of configuration required _and_
 encourage certain file structures for consuming projects!
@@ -207,10 +240,10 @@ encourage certain file structures for consuming projects!
       icon: 'project-config-global',
       label: (
         <span>
-          Configure <code>.moon/project.yml</code> further
+          Configure <code>.moon/tasks.yml</code> further
         </span>
       ),
-      url: './config/global-project',
+      url: './config/tasks',
     },
     {
       icon: 'project-config',

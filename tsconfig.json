@@ -3,7 +3,7 @@
   "files": [],
   "references": [
     {
-      "path": "packages/cli"
+      "path": "packages/nx-compat"
     },
     {
       "path": "packages/report"
@@ -13,6 +13,12 @@
     },
     {
       "path": "packages/types"
+    },
+    {
+      "path": "packages/visualizer"
+    },
+    {
+      "path": "scenarios/signals"
     },
     {
       "path": "website"

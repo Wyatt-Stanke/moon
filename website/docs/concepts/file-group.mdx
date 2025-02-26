@@ -2,15 +2,28 @@
 title: File groups
 ---
 
-File groups are a mechanism for grouping similar types of files within a project using
-[file glob patterns or literal file paths](./file-pattern). These groups are then used by
-[tasks](./task) to calculate functionality like cache computation, affected files since last change,
-deterministic builds, and more.
+File groups are a mechanism for grouping similar types of files and environment variables within a
+project using [file glob patterns or literal file paths](./file-pattern). These groups are then used
+by [tasks](./task) to calculate functionality like cache computation, affected files since last
+change, deterministic builds, and more.
 
 ## Configuration
 
-File groups can be configured per project through [`moon.yml`](../config/project), or for all
-projects through [`.moon/project.yml`](../config/global-project).
+File groups can be configured per project through [`moon.yml`](../config/project), or for many
+projects through [`.moon/tasks.yml`](../config/tasks).
+
+### Token functions
+
+File groups can be referenced in [tasks](./task) using [token functions](./token). For example, the
+`@group(name)` token will expand to all paths configured in the `sources` file group.
+
+```yaml title="moon.yml"
+tasks:
+  build:
+    command: 'vite build'
+    inputs:
+      - '@group(sources)'
+```
 
 ## Inheritance and merging
 
@@ -23,7 +36,7 @@ _override_ file groups defined at the workspace-level. For example, say we want 
 `sources` file group because our source folder is named "lib" and not "src", we would define our
 file groups as followed.
 
-```yaml title=".moon/project.yml"
+```yaml title=".moon/tasks.yml"
 fileGroups:
   sources:
     - 'src/**/*'

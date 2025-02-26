@@ -2,25 +2,35 @@
 title: project-graph
 ---
 
-The `moon project-graph [name]` (or `moon pg`) command will generate a graph of all configured
-projects, with edges between dependencies, and will output the graph in
-[Graphviz DOT format](https://graphviz.org/doc/info/lang.html). This output can then be used by any
-tool or program that supports DOT, for example, this
-[live preview visualizer](https://dreampuf.github.io/GraphvizOnline).
-
-In the future we aim to replace this with an interactive visualizer.
+The `moon project-graph [id]` (or `moon pg`) command will generate and serve a visual graph of all
+configured projects as nodes, with dependencies between as edges, and can also output the graph in
+[Graphviz DOT format](https://graphviz.org/doc/info/lang.html).
 
 ```shell
-$ moon project-graph > graph.dot
+# Run the visualizer locally
+$ moon project-graph
+
+# Export to DOT format
+$ moon project-graph --dot > graph.dot
 ```
 
-> A project name can be passed to focus the graph to only that project and it's dependencies. For
+> A project name can be passed to focus the graph to only that project and its dependencies. For
 > example, `moon project-graph app`.
 
 ### Arguments
 
 - `[name]` - Optional name or alias of a project to focus, as defined in
   [`projects`](../config/workspace#projects).
+
+### Options
+
+- `--dependents` - Include direct dependents of the focused project.
+- `--dot` - Print the graph in DOT format.
+- `--json` - Print the graph in JSON format.
+
+### Configuration
+
+- [`projects`](../config/workspace#projects) in `.moon/workspace.yml`
 
 ## Example output
 

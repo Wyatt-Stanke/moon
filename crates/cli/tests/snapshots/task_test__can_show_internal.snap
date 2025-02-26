@@ -1,0 +1,23 @@
+---
+source: crates/cli/tests/task_test.rs
+expression: assert.output_standardized()
+---
+ TASKS:INTERNAL 
+
+Task: internal
+Project: tasks
+Toolchain: node
+Type: test
+Modes: internal
+
+ PROCESS 
+
+Command: build 
+Working directory: <WORKSPACE>/tasks
+Runs dependencies: Concurrently
+Runs in CI: Yes
+
+ INPUTS 
+
+  - .moon/*.{pkl,yml}
+  - tasks/**/*

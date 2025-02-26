@@ -1,27 +1,29 @@
 ---
 source: crates/cli/tests/project_test.rs
-assertion_line: 54
-expression: get_assert_output(&assert)
+expression: assert.output()
 ---
-
  BASIC 
 
-ID: basic
+Project: basic
 Source: basic
-Language: JavaScript
-Type: Unknown
+Toolchain: node
+Language: javascript
+Stack: unknown
+Type: unknown
+Tags: vue
 
  DEPENDS ON 
 
- - noConfig (explicit, production)
+  - noConfig (explicit, production)
+
+ INHERITS FROM 
+
+  - .moon/tasks.yml
 
  FILE GROUPS 
 
 sources:
- - src/**/*
- - types/**/*
+  - basic/src/**/*
+  - basic/types/**/*
 tests:
- - **/*_test.rs
-
-
-
+  - basic/**/*_test.rs

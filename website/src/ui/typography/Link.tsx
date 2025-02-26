@@ -1,4 +1,3 @@
-import React from 'react';
 import cx from 'clsx';
 import BaseLink, { Props as BaseLinkProps } from '@docusaurus/Link';
 import { sizes, TextSize, transforms, weights } from './Text';
@@ -28,6 +27,7 @@ export default function Link({
 	return (
 		<BaseLink
 			className={cx(
+				'cursor-pointer',
 				sizes[size],
 				transform && transforms[transform],
 				variants[variant],

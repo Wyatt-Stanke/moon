@@ -1,0 +1,26 @@
+---
+title: unpin
+---
+
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
+
+<VersionLabel version="0.36.0" header />
+
+The `proto unpin <tool>` command will unpin a version of a tool.
+
+```shell
+$ proto unpin go
+```
+
+By default this will update the local [`./.prototools`](../config) file. Pass `--from` to customize
+the location.
+
+### Arguments
+
+- `<tool>` - Type of tool.
+
+### Options
+
+- `--from` - [Location of `.prototools`](../config#locations) to update. Supports `global`, `local`,
+  and `user`.
+  <VersionLabel version="0.41.0" />

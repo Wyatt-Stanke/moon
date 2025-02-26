@@ -1,19 +1,24 @@
 ---
 source: crates/cli/tests/project_test.rs
-assertion_line: 104
-expression: get_assert_output(&assert)
+expression: assert.output()
 ---
-
  ROOT 
 
-ID: root
+Project: root
+Alias: test-cases
 Source: .
-Language: TypeScript
-Type: Unknown
+Toolchain: node
+Language: typescript
+Stack: unknown
+Type: unknown
+
+ INHERITS FROM 
+
+  - .moon/tasks.yml
 
  TASKS 
 
-oneOff: node -e console.log('root one off')
-
-
-
+noop: 
+  › noop 
+oneOff: 
+  › echo root-one-off

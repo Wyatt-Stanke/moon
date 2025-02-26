@@ -1,0 +1,10 @@
+language: 'javascript'
+
+dependsOn:
+  - 'bar'
+  - id: 'foo'
+    scope: 'development'
+
+tasks:
+  baz:
+    command: baz

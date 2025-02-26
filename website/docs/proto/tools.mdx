@@ -1,0 +1,25 @@
+---
+title: Supported tools
+---
+
+import Button from '@site/src/ui/Button';
+import ToolCards from '@site/src/components/Products/Proto/ToolCards';
+import { BUILT_IN_TOOLS, THIRD_PARTY_TOOLS } from '@site/src/data/proto-tools';
+
+## Built-in
+
+The following tools are supported natively in proto's toolchain.
+
+<ToolCards data="built-in" />
+
+## Third-party
+
+<Button
+  className="float-right -mt-8"
+  href="https://github.com/moonrepo/proto/tree/master/registry"
+  label="Add tool"
+/>
+
+Additional tools can be supported through [plugins](./plugins).
+
+<ToolCards data="third-party" />

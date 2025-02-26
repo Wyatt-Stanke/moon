@@ -4,7 +4,8 @@ title: Tokens
 
 import VersionLabel from '@site/src/components/Docs/VersionLabel';
 
-Tokens are variables and functions that can be used by [`args`](../config/project#args),
+Tokens are variables and functions that can be used by [`command`](../config/project#command),
+[`args`](../config/project#args), [`env`](../config/project#env) (>= v1.12),
 [`inputs`](../config/project#inputs), and [`outputs`](../config/project#outputs) when configuring a
 task. They provide a way of accessing file group paths, referencing values from other task fields,
 and referencing metadata about the project and task itself.
@@ -15,22 +16,23 @@ A token function is labeled as such as it takes a single argument, starts with a
 formatted as `@name(arg)`. The following token functions are available, grouped by their
 functionality.
 
-> Token functions _must_ be the only content within a list item, as they expand to multiple file
-> paths.
+:::caution
+
+Token functions _must_ be the only content within a value, as they expand to multiple files. When
+used in an `env` value, multiple files are joined with a comma (`,`).
+
+:::
 
 ### File groups
 
 These functions reference file groups by name, where the name is passed as the argument.
 
-### `@group`<VersionLabel version="0.6" />
+### `@group`
 
-> Usable in `args` and `inputs`.
+> Usable in `args`, `env`, `inputs`, and `outputs`.
 
 The `@group(file_group)` token is a standard token that will be replaced with the file group items
 as-is, for both file paths and globs. This token merely exists for reusability purposes.
-
-When used in [`args`](../config/project#args), it will return relative or absolute paths, depending
-on run context, while [`inputs`](../config/project#inputs) will return absolute paths.
 
 ```yaml
 fileGroups:
@@ -66,14 +68,18 @@ tasks:
 
 ### `@dirs`
 
-> Usable in `args` and `inputs`.
+> Usable in `args`, `env`, `inputs`, and `outputs`.
 
 The `@dirs(file_group)` token will be replaced with an expanded list of directory paths, derived
 from the file group of the same name. If a glob pattern is detected within the file group, it will
-walk the file system and aggregate all directories found.
+aggregate all directories found.
 
-When used in [`args`](../config/project#args), it will return relative or absolute paths, depending
-on run context, while [`inputs`](../config/project#inputs) will return absolute paths.
+:::warning
+
+This token walks the file system to verify each directory exists, and filters out those that don't.
+If using within `outputs`, you're better off using [`@group`](#group) instead.
+
+:::
 
 ```yaml
 fileGroups:
@@ -107,14 +113,18 @@ tasks:
 
 ### `@files`
 
-> Usable in `args` and `inputs`.
+> Usable in `args`, `env`, `inputs`, and `outputs`.
 
 The `@files(file_group)` token will be replaced with an expanded list of file paths, derived from
-the file group of the same name. If a glob pattern is detected within the file group, it will walk
-the file system and aggregate all files found.
+the file group of the same name. If a glob pattern is detected within the file group, it will
+aggregate all files found.
 
-When used in [`args`](../config/project#args), it will return relative or absolute paths, depending
-on run context, while [`inputs`](../config/project#inputs) will return absolute paths.
+:::warning
+
+This token walks the file system to verify each file exists, and filters out those that don't. If
+using within `outputs`, you're better off using [`@group`](#group) instead.
+
+:::
 
 ```yaml
 fileGroups:
@@ -146,15 +156,11 @@ tasks:
 
 ### `@globs`
 
-> Usable in `args` and `inputs`.
+> Usable in `args`, `env`, `inputs`, and `outputs`.
 
-The `@globs(file_group)` token will be replaced with an expanded list of glob patterns (as-is),
-derived from the file group of the same name. If a non-glob pattern is detected within the file
-group, it will be ignored.
-
-When used in [`args`](../config/project#args), it will return relative or absolute paths, depending
-on run context, while [`inputs`](../config/project#inputs) will return absolute paths _and_ also be
-used in affected files detection by matching against the patterns.
+The `@globs(file_group)` token will be replaced with the list of glob patterns as-is, derived from
+the file group of the same name. If a non-glob pattern is detected within the file group, it will be
+ignored.
 
 ```yaml
 fileGroups:
@@ -184,14 +190,11 @@ tasks:
 
 ### `@root`
 
-> Usable in `args` and `inputs`.
+> Usable in `args`, `env`, `inputs`, and `outputs`.
 
 The `@root(file_group)` token will be replaced with the lowest common directory, derived from the
 file group of the same name. If a glob pattern is detected within the file group, it will walk the
 file system and aggregate all directories found before reducing.
-
-When used in [`args`](../config/project#args), it will return relative paths, while
-[`inputs`](../config/project#inputs) will return absolute paths.
 
 ```yaml
 fileGroups:
@@ -221,11 +224,40 @@ tasks:
 > When there's no directies, or too many directories, this function will return the project root
 > using `.`.
 
+### `@envs`<VersionLabel version="1.21.0" />
+
+> Usable in `inputs`.
+
+The `@envs(file_group)` token will be replaced with all environment variables that have been
+configured in the group of the provided name.
+
+```yaml
+fileGroups:
+  sources:
+    - 'src/**/*'
+    - '$NODE_ENV'
+
+# Configured as
+tasks:
+  build:
+    command: 'vite build'
+    inputs:
+      - '@envs(sources)'
+
+
+# Resolves to
+tasks:
+  build:
+    command: 'vite build'
+    inputs:
+      - '$NODE_ENV'
+```
+
 ### Inputs & outputs
 
 ### `@in`
 
-> Usable in `args` only.
+> Usable in `script` and `args` only.
 
 The `@in(index)` token will be replaced with a single path, derived from
 [`inputs`](../config/project#inputs) by numerical index. If a glob pattern is referenced by index,
@@ -261,11 +293,10 @@ tasks:
 
 ### `@out`
 
-> Usable in `args` only.
+> Usable in `script` and `args` only.
 
 The `@out(index)` token will be replaced with a single path, derived from
-[`outputs`](../config/project#outputs) by numerical index. If a glob pattern is referenced by index,
-the process will **fail**, as it requires literal folder and file paths.
+[`outputs`](../config/project#outputs) by numerical index.
 
 ```yaml
 # Configured as
@@ -291,175 +322,73 @@ tasks:
       - '/path/to/project/lib'
 ```
 
-## Variables
+### Miscellaneous
 
-> Usable in `args` and `inputs` only.
+### `@meta`<VersionLabel version="1.28.0" />
+
+> Usable in `command`, `script`, `args`, `env`, `inputs`, and `outputs` only.
+
+The `@meta(key)` token can be used to access project metadata and will be replaced with a value
+derived from [`project`](../config/project#project) in [`moon.yml`](../config/project).
+
+The top-level fields (like `name` and `description`) will be used as-is (no quotes). If the setting
+is not defined, it will default to nothing or an empty string. For lists of values, they will be
+joined with `,`.
+
+Custom metadata defined in [`project.metadata`](../config/project#metadata-1) can also be accessed
+by key, but will return a JSON stringified value. For example, a custom string value of `example`
+will be stringified to `"example"` (with quotes).
+
+```yaml
+project:
+  name: 'example'
+  metadata:
+    index: 123
+
+# Configured as
+tasks:
+  build:
+    script: 'build --name @meta(name) --index @meta(index)'
+
+# Resolves to
+tasks:
+  build:
+    script: 'build --name example --index 123'
+```
+
+## Variables
 
 A token variable is a value that starts with `$` and is substituted to a value derived from the
 current workspace, project, and task. And unlike token functions, token variables can be placed
 _within_ content when necessary, and supports multiple variables within the same content.
 
-### `$language`<VersionLabel version="0.7" />
+### Environment<VersionLabel version="1.30.0" />
 
-Programming language the project is written in, as defined in [`moon.yml`](../config/project). If
-the project has not defined the [`language`](../config/project#language) setting, or does not have a
-config, this defaults to "unknown".
+- `$arch` - The current host architecture, derived from the Rust
+  [`ARCH` constant](https://doc.rust-lang.org/std/env/consts/constant.ARCH.html).
+- `$os` - The current operating system, derived from the Rust
+  [`OS` constant](https://doc.rust-lang.org/std/env/consts/constant.OS.html).
+- `$osFamily` - The current operating system family, either `unix` or `windows`.
 
 ```yaml
 # Configured as
 tasks:
   build:
-    command: 'example debug $language'
+    command: 'example --arch $arch'
 
 # Resolves to
 tasks:
   build:
     command:
       - 'example'
-      - 'debug'
-      - 'node'
+      - '--arch'
+      - 'aarch64'
 ```
 
-### `$project`
+### Workspace
 
-ID/name of the project that owns the currently running task, as defined in
-[`.moon/workspace.yml`](../config/workspace).
-
-```yaml
-# Configured as
-tasks:
-  build:
-    command: 'example --project $project'
-
-# Resolves to
-tasks:
-  build:
-    command:
-      - 'example'
-      - '--project'
-      - 'web'
-```
-
-### `$projectRoot`
-
-Absolute file path to the project root.
-
-```yaml
-# Configured as
-tasks:
-  build:
-    command: 'example --cwd $projectRoot'
-
-# Resolves to
-tasks:
-  build:
-    command:
-      - 'example'
-      - '--cwd'
-      - '/path/to/repo/apps/web'
-```
-
-### `$projectSource`
-
-Relative file path from the workspace root to the project root, as defined in
-[`.moon/workspace.yml`](../config/workspace).
-
-```yaml
-# Configured as
-tasks:
-  build:
-    command:
-      - 'example'
-      - '--cache-dir'
-      - '../../.cache/$projectSource'
-
-# Resolves to
-tasks:
-  build:
-    command:
-      - 'example'
-      - '--cache-dir'
-      - '../../.cache/apps/web'
-```
-
-### `$projectType`<VersionLabel version="0.7" />
-
-The type of project, as defined in [`moon.yml`](../config/project). If the project has not defined
-the [`type`](../config/project#type) setting, or does not have a config, this defaults to "unknown".
-
-```yaml
-# Configured as
-tasks:
-  build:
-    command: 'example debug $projectType'
-
-# Resolves to
-tasks:
-  build:
-    command:
-      - 'example'
-      - 'debug'
-      - 'application'
-```
-
-### `$target`
-
-Target that is currently running. Is a combination of project and task name.
-
-```yaml
-# Configured as
-tasks:
-  build:
-    command: 'example $target'
-
-# Resolves to
-tasks:
-  build:
-    command:
-      - 'example'
-      - 'web:build'
-```
-
-### `$task`
-
-ID/name of the task that is currently running.
-
-```yaml
-# Configured as
-tasks:
-  build:
-    command: 'example --task=$task'
-
-# Resolves to
-tasks:
-  build:
-    command:
-      - 'example'
-      - '--task=build'
-```
-
-### `$taskType`<VersionLabel version="0.7" />
-
-The type of task that is currently running.
-
-```yaml
-# Configured as
-tasks:
-  build:
-    command: 'example --type $taskType'
-
-# Resolves to
-tasks:
-  build:
-    command:
-      - 'example'
-      - '--type'
-      - 'system'
-```
-
-### `$workspaceRoot`
-
-Absolute file path to the workspace root.
+- `$workingDir` - The current working directory.
+- `$workspaceRoot` - Absolute file path to the workspace root.
 
 ```yaml
 # Configured as
@@ -477,4 +406,111 @@ tasks:
       - 'example'
       - '--cwd'
       - '/path/to/repo'
+```
+
+### Project
+
+Most values are derived from settings in [`moon.yml`](../config/project). When a setting is not
+defined, or does not have a config, the variable defaults to "unknown" (for enums) or an empty
+string.
+
+- `$language` Programming language the project is written in, as defined with
+  [`language`](../config/project#language).
+- `$project` - ID of the project that owns the currently running task, as defined in
+  [`.moon/workspace.yml`](../config/workspace).
+- `$projectAlias` - Alias of the project that owns the currently running task.
+- `$projectChannel` - The discussion channel for the project, as defined with
+  [`project.channel`](../config/project#channel).
+  <VersionLabel version="1.28.0" />
+- `$projectName` - The human-readable name of the project, as defined with
+  [`project.name`](../config/project#name).
+  <VersionLabel version="1.28.0" />
+- `$projectOwner` - The owner of the project, as defined with
+  [`project.owner`](../config/project#name).
+  <VersionLabel version="1.28.0" />
+- `$projectRoot` - Absolute file path to the project root.
+- `$projectSource` - Relative file path from the workspace root to the project root, as defined in
+  [`.moon/workspace.yml`](../config/workspace).
+- `$projectStack` - The stack of the project, as defined with [`stack`](../config/project#stack).
+  <VersionLabel version="1.22.0" />
+- `$projectType` - The type of project, as defined with [`type`](../config/project#type).
+
+```yaml
+# Configured as
+tasks:
+  build:
+    command: 'example debug $language'
+
+# Resolves to
+tasks:
+  build:
+    command:
+      - 'example'
+      - 'debug'
+      - 'node'
+```
+
+### Task
+
+- `$target` - Fully-qualified target that is currently running.
+- `$task` - ID of the task that is currently running. Does not include the project ID.
+- `$taskToolchain` - The toolchain that task will run against, as defined in
+  [`moon.yml`](../config/project). <VersionLabel version="1.31.0" />
+- `$taskType` - The [type of task](./task#types), based on its configured settings.
+
+```yaml
+# Configured as
+tasks:
+  build:
+    command: 'example $target'
+
+# Resolves to
+tasks:
+  build:
+    command:
+      - 'example'
+      - 'web:build'
+```
+
+### Date/Time
+
+- `$date` - The current date in the format of `YYYY-MM-DD`.
+- `$datetime` - The current date and time in the format of `YYYY-MM-DD_HH:MM:SS`.
+- `$time` - The current time in the format of `HH:MM:SS`.
+- `$timestamp` - The current date and time as a UNIX timestamp in seconds.
+
+```yaml
+# Configured as
+tasks:
+  build:
+    command: 'example --date $date'
+
+# Resolves to
+tasks:
+  build:
+    command:
+      - 'example'
+      - '--date'
+      - '2023-03-17'
+```
+
+### VCS<VersionLabel version="1.30.0" />
+
+- `$vcsBranch` - The current branch.
+- `$vcsRepository` - The repository slug, in the format of `owner/repo`.
+- `$vcsRevision` - The current revision (commit, etc).
+
+```yaml
+# Configured as
+tasks:
+  build:
+    command: 'example --branch $vcsBranch'
+
+# Resolves to
+tasks:
+  build:
+    command:
+      - 'example'
+      - '--branch'
+      - 'master'
 ```

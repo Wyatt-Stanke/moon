@@ -1,0 +1,13 @@
+tasks:
+  echo:
+    script: 'echo "foo"'
+  echo-nonquoted:
+    script: echo "bar"
+  multi:
+    script: 'echo "foo"; echo "bar" && echo "baz"'
+  pipe:
+    script: 'ls | grep moon'
+  redirect:
+    script: 'echo "contents" > file.txt'
+  args:
+    script: './args.sh'

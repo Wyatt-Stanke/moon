@@ -1,0 +1,29 @@
+[package]
+name = "moon_process"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Process utilities."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+moon_args = { path = "../args" }
+moon_common = { path = "../common" }
+moon_console = { path = "../console" }
+cached = { workspace = true }
+miette = { workspace = true }
+once_cell = { workspace = true }
+rustc-hash = { workspace = true }
+starbase_shell = { workspace = true }
+system_env = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "signal", "sync"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.169"
+
+[lints]
+workspace = true

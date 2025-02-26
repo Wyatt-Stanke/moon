@@ -1,13 +1,13 @@
 language: javascript
 
+tags: [standard]
+
 tasks:
   standard:
-    command: node
-    args: -e "console.log('deps=c')"
+    command: noop
 
   dependencyOrder:
-    command: node
-    args: -e "console.log('deps=c')"
+    command: noop
 
   # Cycle detection
   taskCycle:

@@ -1,0 +1,28 @@
+---
+source: crates/cli/tests/run_bun_test.rs
+expression: assert.output()
+---
+ SCRIPTS 
+
+Project: scripts
+Alias: test-bun-scripts
+Source: scripts
+Toolchain: bun
+Language: javascript
+Stack: unknown
+Type: unknown
+
+ INHERITS FROM 
+
+  - .moon/tasks.yml
+
+ TASKS 
+
+build: 
+  › bun run build
+lint-all: 
+  › bun run lint:all
+noop: 
+  › noop 
+version: 
+  › bun --version

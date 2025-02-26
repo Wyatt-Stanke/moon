@@ -1,26 +1,18 @@
-use crate::TaskConfig;
-use std::collections::{BTreeMap, HashMap};
+use crate::project::TaskConfig;
+use crate::shapes::InputPath;
+use moon_common::path::WorkspaceRelativePathBuf;
+use moon_common::Id;
+use rustc_hash::FxHashMap;
+use std::collections::BTreeMap;
 
-pub type FileGlob = String;
+pub type FileGroupsMap = FxHashMap<Id, Vec<InputPath>>;
 
-pub type FilePath = String;
+pub type ProjectSourceEntry = (Id, WorkspaceRelativePathBuf);
 
-pub type FilePathOrGlob = String;
+pub type ProjectsSourcesList = Vec<ProjectSourceEntry>;
 
-pub type FileGroups = HashMap<String, Vec<FilePathOrGlob>>;
+pub type ProjectAliasEntry = (Id, String);
 
-pub type InputValue = String; // file path, glob, env var
+pub type ProjectsAliasesList = Vec<ProjectAliasEntry>;
 
-pub type ProjectAlias = String;
-
-pub type ProjectsSourcesMap = HashMap<ProjectID, String>;
-
-pub type ProjectsAliasesMap = HashMap<ProjectAlias, ProjectID>;
-
-pub type ProjectID = String;
-
-pub type TaskID = String;
-
-pub type TasksConfigsMap = BTreeMap<TaskID, TaskConfig>;
-
-pub type TargetID = String; // project_id:task_id
+pub type TasksConfigsMap = BTreeMap<Id, TaskConfig>;

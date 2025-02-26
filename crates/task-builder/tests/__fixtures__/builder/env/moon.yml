@@ -1,0 +1,12 @@
+env:
+  SCOPE: 'project'
+  KEY1: 'value1'
+  KEY2: 'value2'
+
+tasks:
+  no-env: {}
+  with-env:
+    env:
+      SCOPE: 'task'
+      KEY2: 'env-value2'
+      EXTRA: '123'

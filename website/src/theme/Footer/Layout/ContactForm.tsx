@@ -1,40 +1,33 @@
 /* eslint-disable promise/prefer-await-to-then */
 
 import React, { ChangeEvent, useCallback, useState } from 'react';
-import cx from 'clsx';
+import { faXmark } from '@fortawesome/pro-regular-svg-icons';
+import YC from '../../../../static/img/logo-yc.svg';
+import Button, { ButtonProps } from '../../../ui/Button';
+import Icon from '../../../ui/iconography/Icon';
+import Link from '../../../ui/typography/Link';
 import Text from '../../../ui/typography/Text';
 
-interface NextButtonProps {
-	disabled?: boolean;
-	label?: string;
-	onClick: () => void;
-}
-
-function NextButton({ disabled, label = 'Next', onClick }: NextButtonProps) {
-	return (
-		<button
-			type="button"
-			className={cx(
-				'w-1/4 border border-transparent rounded-md px-2 py-1 flex items-center justify-center text-base font-bold text-white bg-blurple-400 dark:bg-purple-600',
-				disabled
-					? 'opacity-60'
-					: 'hover:text-white hover:bg-blurple-500 dark:hover:bg-purple-500 cursor-pointer',
-			)}
-			disabled={disabled}
-			onClick={onClick}
-		>
-			{label}
-		</button>
-	);
+function NextButton(props: Partial<ButtonProps>) {
+	return <Button {...props} label="Next" id="contact-next" className="w-1/4" />;
 }
 
 export default function ContactForm() {
 	const [step, setStep] = useState(1);
-	const [subject, setSubject] = useState('Consultation');
+	const [subject, setSubject] = useState('');
 	const [email, setEmail] = useState('');
 	const [message, setMessage] = useState('');
 	const [sending, setSending] = useState(false);
 	const [failed, setFailed] = useState(false);
+
+	const handleReset = useCallback(() => {
+		setStep(1);
+		setSubject('');
+		setEmail('');
+		setMessage('');
+		setSending(false);
+		setFailed(false);
+	}, []);
 
 	const handleNext = useCallback(() => {
 		setStep((prev) => prev + 1);
@@ -78,79 +71,111 @@ export default function ContactForm() {
 	const isMessageValid = message.length > 10;
 
 	return (
-		<div className="mt-2">
-			{step === 1 && (
-				<div className="flex justify-between gap-x-1">
-					<div className="w-3/4">
-						<label htmlFor="subject" className="sr-only">
-							Subject
-						</label>
-
-						<select
-							id="subject"
-							name="subject"
-							required
-							className="outline-none min-w-0 w-full bg-white border border-transparent rounded-md px-1 py-1 text-base text-gray-800 placeholder-gray-600 h-full font-sans"
-							onChange={handleSubject}
-						>
-							<option value="Consultation">Consultation</option>
-							<option value="Partnership">Partnership</option>
-						</select>
-					</div>
-
-					<NextButton onClick={handleNext} />
-				</div>
+		<>
+			{subject ? (
+				<Text>
+					<Link className="float-right text-lg px-1" onClick={handleReset}>
+						<Icon icon={faXmark} />
+					</Link>
+					Contacting about <b>{subject}</b>
+				</Text>
+			) : (
+				<Text variant="muted">Want to learn more about moonrepo? Have questions?</Text>
 			)}
 
-			{step === 2 && (
-				<div className="flex justify-between gap-x-1">
-					<div className="w-3/4">
-						<label htmlFor="email" className="sr-only">
-							Email address
-						</label>
+			<div className="mt-2">
+				{step === 1 && (
+					<div className="flex justify-between gap-x-1">
+						<div className="w-3/4">
+							<label htmlFor="subject" className="sr-only">
+								Subject
+							</label>
 
-						<input
-							type="email"
-							name="email"
-							id="email"
-							autoComplete="email"
+							<select
+								id="subject"
+								name="subject"
+								required
+								className="outline-none min-w-0 w-full bg-white border border-transparent rounded-md px-1 py-1 text-base text-gray-800 placeholder-gray-600 h-full font-sans"
+								onChange={handleSubject}
+								value={subject}
+							>
+								<option value=""></option>
+								<option value="Consultation">Consultation</option>
+								<option value="Partnership">Partnership</option>
+								<option value="Affiliation">Affiliation</option>
+							</select>
+						</div>
+
+						<NextButton disabled={!subject} onClick={handleNext} />
+					</div>
+				)}
+
+				{step === 2 && (
+					<div className="flex justify-between gap-x-1">
+						<div className="w-3/4">
+							<label htmlFor="email" className="sr-only">
+								Email address
+							</label>
+
+							<input
+								type="email"
+								name="email"
+								id="email"
+								autoComplete="email"
+								required
+								className="appearance-none outline-none min-w-0 w-full bg-white border border-transparent rounded-md px-1 py-1 text-base text-gray-800 placeholder-gray-600 h-full font-sans"
+								placeholder="Email address"
+								onChange={handleEmail}
+								value={email}
+							/>
+						</div>
+
+						<NextButton disabled={!isEmailValid} onClick={handleNext} />
+					</div>
+				)}
+
+				{step === 3 && (
+					<div>
+						<textarea
+							id="message"
+							name="message"
 							required
-							className="appearance-none outline-none min-w-0 w-full bg-white border border-transparent rounded-md px-1 py-1 text-base text-gray-800 placeholder-gray-600 h-full font-sans"
-							placeholder="Email address"
-							onChange={handleEmail}
+							className="appearance-none outline-none min-w-0 w-full bg-white border border-transparent rounded-md px-1 py-1 text-base text-gray-800 placeholder-gray-600 font-sans"
+							placeholder="Message..."
+							onChange={handleMessage}
 						/>
+
+						<div className="flex justify-end">
+							<NextButton
+								disabled={!isMessageValid || sending}
+								label="Send"
+								onClick={handleSubmit}
+							/>
+						</div>
 					</div>
+				)}
 
-					<NextButton disabled={!isEmailValid} onClick={handleNext} />
-				</div>
-			)}
-
-			{step === 3 && (
-				<div>
-					<textarea
-						id="message"
-						name="message"
-						required
-						className="appearance-none outline-none min-w-0 w-full bg-white border border-transparent rounded-md px-1 py-1 text-base text-gray-800 placeholder-gray-600 font-sans"
-						placeholder="Message..."
-						onChange={handleMessage}
-					/>
-
-					<div className="flex justify-end">
-						<NextButton disabled={!isMessageValid || sending} label="Send" onClick={handleSubmit} />
+				{step === 4 && (
+					<div>
+						<Text>
+							{failed
+								? 'Failed to send message. Please try again.'
+								: "Thanks for contacting us! We'll get back to you as soon as possible."}
+						</Text>
 					</div>
-				</div>
-			)}
+				)}
+			</div>
 
-			{step === 4 && (
+			<div className="mt-4 flex justify-end items-start gap-1">
 				<div>
-					<Text>
-						{failed
-							? 'Failed to send message. Please try again.'
-							: "Thanks for contacting us! We'll get back to you as soon as possible."}
+					<Text variant="muted" size="sm">
+						Backed by
 					</Text>
 				</div>
-			)}
-		</div>
+				<div>
+					<YC height={22} />
+				</div>
+			</div>
+		</>
 	);
 }

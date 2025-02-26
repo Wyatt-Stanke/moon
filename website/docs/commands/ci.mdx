@@ -5,17 +5,38 @@ title: ci
 The `moon ci` command is a special command that should be ran in a continuous integration (CI)
 environment, as it does all the heavy lifting necessary for effectively running tasks.
 
+By default this will run all tasks that are affected by touched files and have the
+[`runInCI`](../config/project#runinci) task option enabled.
+
 ```shell
 $ moon ci
+```
+
+However, you can also provide a list of targets to explicitly run, which will still be filtered down
+by `runInCI`.
+
+```shell
+$ moon ci :build :lint
 ```
 
 > View the official [continuous integration guide](../guides/ci) for a more in-depth example of how
 > to utilize this command.
 
+### Arguments
+
+- `...[target]` - [Targets](../concepts/target) to run.
+
 ### Options
 
-- `--base <rev>` - Base branch, commit, or revision to compare against. Defaults to
-  [`vcs.defaultBranch`](../config/workspace#defaultbranch).
-- `--head <rev>` - Current branch, commit, or revision to compare with. Defaults to `HEAD`.
+- `--base <rev>` - Base branch, commit, or revision to compare against
+  ([learn more](../guides/ci#comparing-revisions)).
+- `--head <rev>` - Current branch, commit, or revision to compare with
+  ([learn more](../guides/ci#comparing-revisions)).
 - `--job <index>` - Index of the current job.
 - `--jobTotal <total>` Total amount of jobs to run.
+
+### Configuration
+
+- [`tasks`](../config/tasks#tasks) in `.moon/tasks.yml`
+- [`tasks`](../config/project#tasks) in `moon.yml`
+- [`tasks.*.options.runInCI`](../config/project#runinci) in `moon.yml`

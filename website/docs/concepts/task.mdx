@@ -2,108 +2,142 @@
 title: Tasks
 ---
 
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
+
 Tasks are commands that are ran in the context of a [project](./project). Underneath the hood, a
-task is simply an npm binary or a system command that is ran as a child process. Tasks are processed
-in a parallel thread pool within moon's orchestration layer.
+task is simply a binary or system command that is ran as a child process.
 
 ## Names
 
 A task name (or identifier) is a unique resource for locating a task _within_ a project. The name is
 explicitly configured as a key within the [`tasks`](../config/project#tasks) setting, and can be
-written in camel/kebab/snake case. Names support `a-z`, `A-Z`, `0-9`, `_`, `-`, `/`, and must start
-with a character.
+written in camel/kebab/snake case. Names support `a-z`, `A-Z`, `0-9`, `_`, `-`, `/`, `.`, and must
+start with a character.
 
-A task name can be paired with a project name to create a [target](./target).
+A task name can be paired with a scope to create a [target](./target).
 
 ## Types
 
-Tasks are categorized into 1 of the following types based on their configured parameters.
+Tasks are grouped into 1 of the following types based on their configured parameters.
 
 - **Build** - Task generates one or many artifacts, and is derived from the
   [`outputs`](../config/project#outputs) setting.
 - **Run** - Task runs a one-off, long-running, or never-ending process, and is derived from the
-  [`local`](../config/project#local) or [`runInCI`](../config/project#runinci) settings.
+  [`local`](../config/project#local) setting.
 - **Test** - Task asserts code is correct and behaves as expected. This includes linting,
-  typechecking, unit tests, and any other form of testing.
+  typechecking, unit tests, and any other form of testing. Is the default.
+
+## Modes
+
+Alongside types, tasks can also grouped into a special mode that provides unique handling within the
+action graph and pipelines.
+
+### Local only
+
+Tasks either run locally, in CI (continuous integration pipelines), or both. For tasks that should
+_only_ be ran locally, for example, development servers and watchers, we provide a mechanism for
+marking a task as local only. When enabled, caching is turned off, the task will not run in CI,
+terminal output is not captured, and the task is marked as [persistent](#persistent).
+
+To mark a task as local only, enable the [`local`](../config/project#local) setting.
+
+```yaml title="moon.yml"
+tasks:
+  dev:
+    command: 'start-dev-server'
+    local: true
+```
+
+### Internal only<VersionLabel version="1.23.0" />
+
+Internal tasks are tasks that are not meant to be ran explicitly by the user (via
+[`moon check`](../commands/check) or [`moon run`](../commands/run)), but are used internally as
+dependencies of other tasks. Additionally, internal tasks are not displayed in a project's tasks
+list, but can be inspected with [`moon task`](../commands/task).
+
+To mark a task as internal, enable the [`options.internal`](../config/project#internal) setting.
+
+```yaml title="moon.yml"
+tasks:
+  prepare:
+    command: 'intermediate-step'
+    options:
+      internal: true
+```
+
+### Interactive<VersionLabel version="1.12.0" />
+
+Tasks that need to interact with the user via terminal prompts are known as interactive tasks.
+Because interactive tasks require stdin, and it's not possible to have multiple parallel running
+tasks interact with stdin, we isolate interactive tasks from other tasks in the action graph. This
+ensures that only 1 interactive task is ran at a time.
+
+To mark a task as interactive, enable the [`options.interactive`](../config/project#interactive)
+setting.
+
+```yaml title="moon.yml"
+tasks:
+  init:
+    command: 'init-app'
+    options:
+      interactive: true
+```
+
+### Persistent<VersionLabel version="1.6.0" />
+
+Tasks that never complete, like servers and watchers, are known as persistent tasks. Persistent
+tasks are typically problematic when it comes to dependency graphs, because if they run in the
+middle of the graph, subsequent tasks will never run because the persistent task never completes!
+
+However in moon, this is a non-issue, as we collect all persistent tasks within the action graph and
+run them _last as a batch_. This is perfect for a few reasons:
+
+- All persistent tasks are ran in parallel, so they don't block each other.
+- Running both the backend API and frontend webapp in parallel is a breeze.
+- Dependencies of persistent tasks are guaranteed to have ran and completed.
+
+To mark a task as persistent, enable the [`local`](../config/project#local) or
+[`options.persistent`](../config/project#persistent) settings.
+
+```yaml title="moon.yml"
+tasks:
+  dev:
+    command: 'start-dev-server'
+    local: true
+    # OR
+    options:
+      persistent: true
+```
 
 ## Configuration
 
-Tasks can be configured per project through [`moon.yml`](../config/project), or for all projects
-through [`.moon/project.yml`](../config/global-project).
+Tasks can be configured per project through [`moon.yml`](../config/project), or for many projects
+through [`.moon/tasks.yml`](../config/tasks).
 
-## Merge strategies
+### Commands vs Scripts
 
-When a [global task](../config/global-project#tasks) and [local task](../config/project#tasks) of
-the same name exist, they are merged into a single task. To accomplish this, one of many
-[merge strategies](../config/project#options) can be used.
+A task is either a command or script, but not both. So what's the difference exactly? In the context
+of a moon task, a command is a single binary execution with optional arguments, configured with the
+[`command`](../config/project#command) and [`args`](../config/project#args) settings (which both
+support a string or array). While a script is one or many binary executions, with support for pipes
+and redirects, and configured with the [`script`](../config/project#script) setting (which is only a
+string).
 
-Merging is applied to the parameters [`args`](../config/project#args),
-[`deps`](../config/project#deps), [`env`](../config/project#env),
-[`inputs`](../config/project#inputs), and [`outputs`](../config/project#outputs), using the
-[`mergeArgs`](../config/project#mergeargs), [`mergeDeps`](../config/project#mergedeps),
-[`mergeEnv`](../config/project#mergeenv), [`mergeInputs`](../config/project#mergeinputs) and
-[`mergeOutputs`](../config/project#mergeoutputs) options respectively. Each of these options support
-one of the following strategy values.
+A command also supports merging during task inheritance, while a script does not and will always
+replace values. Refer to the table below for more differences between the 2.
 
-- `append` (default) - Values found in the local task are merged _after_ the values found in the
-  global task. For example, this strategy is useful for toggling flag arguments.
-- `prepend` - Values found in the local task are merged _before_ the values found in the global
-  task. For example, this strategy is useful for applying option arguments that must come before
-  positional arguments.
-- `replace` - Values found in the local task entirely _replaces_ the values in the global task. This
-  strategy is useful when you need full control.
+|                                          | Command                   | Script             |
+| :--------------------------------------- | :------------------------ | :----------------- |
+| Configured as                            | string, array             | string             |
+| Inheritance merging                      | ✅ via `mergeArgs` option | ⚠️ always replaces |
+| Additional args                          | ✅ via `args` setting     | ❌                 |
+| Passthrough args (from CLI)              | ✅                        | ❌                 |
+| Multiple commands (with `&&` or `;`)     | ❌                        | ✅                 |
+| Pipes, redirects, etc                    | ❌                        | ✅                 |
+| Always ran in a shell                    | ❌                        | ✅                 |
+| Custom platform/toolchain                | ✅                        | ✅                 |
+| [Token](./token) functions and variables | ✅                        | ✅                 |
 
-All 3 of these strategies are demonstrated below, with a somewhat contrived example, but you get the
-point.
+### Inheritance
 
-```yaml
-# Global
-tasks:
-  build:
-    command:
-      - 'webpack'
-      - '--mode'
-      - 'production'
-      - '--color'
-    deps:
-      - 'designSystem:build'
-    inputs:
-      - '/webpack.config.js'
-    outputs:
-      - 'build/'
-
-# Local
-tasks:
-  build:
-    args: '--no-color --no-stats'
-    deps:
-      - 'reactHooks:build'
-    inputs:
-      - 'webpack.config.js'
-    options:
-      mergeArgs: 'append'
-      mergeDeps: 'prepend'
-      mergeInputs: 'replace'
-
-# Merged result
-tasks:
-  build:
-    command:
-      - 'webpack'
-      - '--mode'
-      - 'production'
-      - '--color'
-      - '--no-color'
-      - '--no-stats'
-    deps:
-      - 'reactHooks:build'
-      - 'designSystem:build'
-    inputs:
-      - 'webpack.config.js'
-    outputs:
-      - 'build/'
-    options:
-      mergeArgs: 'append'
-      mergeDeps: 'prepend'
-      mergeInputs: 'replace'
-```
+View the official documentation on [task inheritance](./task-inheritance).

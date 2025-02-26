@@ -1,4 +1,3 @@
-import React from 'react';
 import cx from 'clsx';
 import {
 	TypographyAlign,
@@ -98,7 +97,7 @@ export default function Text<T extends TextElement>({
 	return (
 		<Tag
 			className={cx(
-				'm-0',
+				// 'm-0',
 				align && alignment[align],
 				overflows[overflow],
 				sizes[size],

@@ -2,20 +2,19 @@
 title: Overview
 ---
 
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
+
 The following options are available for _all_ moon commands.
 
 - `--cache <mode>` - The mode for [cache operations](#caching).
 - `--color` - Force [colored output](#colors) for moon (not tasks).
+- `--concurrency`, `-c` - Maximum number of threads to utilize.
+- `--dump` - Dump a [trace profile](#profiling) to the working directory.
 - `--help` - Display the help menu for the current command.
 - `--log <level>` - The lowest [log level to output](#logging).
 - `--logFile <file>` - Write logs to the defined file.
+- `--quiet`, `-q` - Hide all non-important moon specific terminal output.
 - `--version` - Display the version of the CLI.
-
-Global options _must_ be passed after the `moon` binary and before the command.
-
-```shell
-$ moon --log error <command>
-```
 
 ## Caching
 
@@ -25,10 +24,11 @@ option, or the `MOON_CACHE` environment variable, both of which accept one of th
 
 - `off` - Turn off caching entirely. Every task will run fresh, including dependency installs.
 - `read` - Read existing items from the cache, but do not write to them.
-- `write` (default) - Read and write items to the cache.
+- `read-write` (default) - Read and write items to the cache.
+- `write` - Do not read existing cache items, but write new items to the cache.
 
 ```shell
-$ moon --cache off run app:build
+$ moon run app:build --cache off
 # Or
 $ MOON_CACHE=off moon run app:build
 ```
@@ -44,7 +44,7 @@ and operating systems. moon aims to normalize this as much as possible, by doing
   `FORCE_COLOR` environment variables.
 
 ```shell
-$ moon --color run app:build
+$ moon app:build --color run
 # Or
 $ MOON_COLOR=2 moon run app:build
 ```
@@ -70,10 +70,35 @@ the [`runner.inheritColorsForPipedTasks`](../config/workspace#inheritcolorsforpi
 configuration setting. When enabled, all piped child processes will inherit the color settings of
 the currently running terminal.
 
+## Concurrency
+
+The `--concurrency` option or `MOON_CONCURRENCY` environment variable can be used to control the
+maximum amount of threads to utilize in our thread pool. If not defined, defaults to the number of
+operating system cores.
+
+```shell
+$ moon run app:build --concurrency 1
+# Or
+$ MOON_CONCURRENCY=1 moon run app:build
+```
+
 ## Debugging
 
-At this point in time, moon provides no debugging utilities besides [logging](#logging) with the
-`debug`/`trace` levels.
+At minimum, most debugging can be done by passing [`--log trace`](#logging) on the command line and
+sifting through the logs. We also provide the following environment variables to toggle output.
+
+- `MOON_DEBUG_PROCESS_ENV` - By default moon hides the environment variables (except for `MOON_`)
+  passed to processes to avoid leaking sensitive information. However, knowing what environment
+  variables are passed around is helpful in debugging. Declare this variable to reveal the entire
+  environment.
+- `MOON_DEBUG_PROCESS_INPUT` - By default moon truncates the stdin passed to processes to avoid
+  thrashing the console with a large input string. However, knowing what input is passed around is
+  helpful in debugging. Declare this variable to reveal the entire input.
+- `MOON_DEBUG_PROTO_INSTALL` - Debug the proto installation process.
+- `MOON_DEBUG_REMOTE` - Debug our remote caching implementation by including additional logging
+  output, and printing internal connection errors.
+- `MOON_DEBUG_WASM` - Debug our WASM plugins by including additional logging output, and optionally
+  dumping memory/core profiles.
 
 ## Logging
 
@@ -90,7 +115,7 @@ levels are supported, in priority order.
 - `trace` - Show all logs, including network requests and child processes.
 
 ```shell
-$ moon --log trace run app:build
+$ moon run app:build --log trace
 # Or
 $ MOON_LOG=trace moon run app:build
 ```
@@ -102,7 +127,16 @@ environment variable. The dumped logs will respect the `--log` option and filter
 the output file.
 
 ```shell
-$ moon --logFile=output.log run app:build
+$ moon run app:build --logFile=output.log
 # Or
 $ MOON_LOG_FILE=output.log moon run app:build
 ```
+
+## Profiling<VersionLabel version="1.26.0" />
+
+When the `--dump` option or `MOON_DUMP` environment variable is set, moon will generate a trace
+profile and dump it to the current working directory. This profile can be opened with Chrome (via
+`chrome://tracing`) or [Perfetto](https://ui.perfetto.dev/).
+
+This profile will display many of the operations within moon as a flame chart, allowing you to
+inspect and debug slow operations.

@@ -1,0 +1,231 @@
+---
+title: Cheat sheet
+toc_max_heading_level: 4
+---
+
+import Columns from '@site/src/components/Columns';
+
+Don't have time to read the docs? Here's a quick cheat sheet to get you started.
+
+## Tasks
+
+Learn more about [tasks](./concepts/task) and [targets](./concepts/target).
+
+#### Run all build and test tasks for all projects
+
+```shell
+moon check --all
+```
+
+#### Run all build and test tasks in a project
+
+```shell
+moon check project
+```
+
+#### Run all build and test tasks for closest project based on working directory
+
+```shell
+moon check
+```
+
+#### Run a task in all projects
+
+```shell
+moon run :task
+```
+
+#### Run a task in all projects with a tag
+
+```shell
+moon run '#tag:task'
+# OR
+moon run \#tag:task
+# OR
+moon run :task --query "tag=tag"
+```
+
+#### Run a task in a project
+
+```shell
+moon run project:task
+```
+
+#### Run multiple tasks in all projects
+
+```shell
+moon run :task1 :task2
+```
+
+#### Run multiple tasks in any project
+
+```shell
+moon run projecta:task1 projectb:task2
+```
+
+#### Run a task in applications, libraries, or tools
+
+```shell
+moon run :task --query "projectType=application"
+```
+
+#### Run a task in projects of a specific language
+
+```shell
+moon run :task --query "language=typescript"
+```
+
+#### Run a task in projects matching a keyword
+
+```shell
+moon run :task --query "project~react-*"
+```
+
+#### Run a task in projects based on file path
+
+```shell
+moon run :task --query "projectSource~packages/*"
+```
+
+## Task configuration
+
+Learn more about [available options](./config/project#tasks).
+
+#### Disable caching
+
+```yaml title="moon.yml"
+tasks:
+  example:
+    # ...
+    options:
+      cache: false
+```
+
+#### Re-run flaky tasks
+
+```yaml title="moon.yml"
+tasks:
+  example:
+    # ...
+    options:
+      retryCount: 3
+```
+
+#### Depend on tasks from parent project's dependencies
+
+```yaml title="moon.yml"
+# Also inferred from the language
+dependsOn:
+  - 'project-a'
+  - 'project-b'
+
+tasks:
+  example:
+    # ...
+    deps:
+      - '^:build'
+```
+
+#### Depend on tasks from arbitrary projects
+
+```yaml title="moon.yml"
+tasks:
+  example:
+    # ...
+    deps:
+      - 'other-project:task'
+```
+
+#### Run dependencies serially
+
+```yaml title="moon.yml"
+tasks:
+  example:
+    # ...
+    deps:
+      - 'first'
+      - 'second'
+      - 'third'
+    options:
+      runDepsInParallel: false
+```
+
+#### Run multiple watchers/servers in parallel
+
+```yaml title="moon.yml"
+tasks:
+  example:
+    command: 'noop'
+    deps:
+      - 'app:watch'
+      - 'backend:start'
+      - 'tailwind:watch'
+    local: true
+```
+
+> The `local` or `persistent` settings are required for this to work.
+
+## Languages
+
+#### Run system binaries available on `PATH`
+
+<Columns count={2}>
+<div>
+
+```yaml title="moon.yml"
+language: 'bash' # batch, etc
+
+tasks:
+  example:
+    command: 'printenv'
+```
+
+</div>
+<div>
+
+```yaml title="moon.yml"
+tasks:
+  example:
+    command: 'printenv'
+    toolchain: 'system'
+```
+
+</div>
+</Columns>
+
+#### Run language binaries not supported in moon's toolchain
+
+```yaml title="moon.yml"
+language: 'ruby'
+
+tasks:
+  example:
+    command: 'rubocop'
+    toolchain: 'system'
+```
+
+#### Run npm binaries (Node.js)
+
+<Columns count={2}>
+<div>
+
+```yaml title="moon.yml"
+language: 'javascript' # typescript
+
+tasks:
+  example:
+    command: 'eslint'
+```
+
+</div>
+<div>
+
+```yaml title="moon.yml"
+tasks:
+  example:
+    command: 'eslint'
+    toolchain: 'node'
+```
+
+</div>
+</Columns>

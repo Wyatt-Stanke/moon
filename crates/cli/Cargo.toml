@@ -1,57 +1,45 @@
 [package]
 name = "moon_cli"
-version = "0.16.1"
+version = "1.32.6"
 edition = "2021"
+publish = false
 
 [[bin]]
 name = "moon"
 path = "src/main.rs"
 
-[lib]
-name = "moon_cli"
-path = "src/lib.rs"
-crate-type = ["rlib"]
-
 [dependencies]
-moon_action = { path = "../action" }
-moon_config = { path = "../config" }
-moon_constants = { path = "../constants" }
-moon_contract = { path = "../contract" }
-moon_error = { path = "../error" }
-moon_generator = { path = "../generator" }
-moon_lang = { path = "../lang" }
-moon_lang_node = { path = "../lang-node" }
-moon_logger = { path = "../logger" }
-moon_platform_node = { path = "../platform-node" }
-moon_platform_system = { path = "../platform-system" }
-moon_project = { path = "../project" }
-moon_runner = { path = "../runner" }
-moon_task = { path = "../task" }
-moon_terminal = { path = "../terminal" }
-moon_toolchain = { path = "../toolchain" }
-moon_utils = { path = "../utils" }
-moon_vcs = { path = "../vcs" }
-moon_workspace = { path = "../workspace" }
-async-recursion = "1.0.0"
-clap = { version = "4.0.10", features = ["derive", "env", "wrap_help"] }
-clap_lex = "0.3.0"
-console = "0.15.2"
-console-subscriber = "0.1.8"
-dialoguer = "0.10.2"
-futures = "0.3.24"
-indicatif = "0.17.1"
-itertools = "0.10.5"
-serde = { workspace = true }
-serde_json = "1.0.85"
-serde_yaml = "0.9.13"
-strum = { version = "0.24.1", features = ["derive"] }
-tera = { version = "1.17.1", features = ["preserve_order"] }
+moon_app = { path = "../app" }
+moon_common = { path = "../common" }
+clap = { workspace = true }
+mimalloc = { version = "0.1.43", default-features = false }
+sigpipe = "0.1.3"
+starbase = { workspace = true, features = ["log-compat"] }
+starbase_styles = { workspace = true }
+starbase_utils = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }
+
+# For extism/wastime (keep in sync with proto)
+extism = { workspace = true }
+wasmtime = "26.0.1"
+wasi-common = "26.0.1"
+wiggle = "26.0.1"
 
 [dev-dependencies]
 moon_cache = { path = "../cache" }
-assert_cmd = "2.0.4"
-insta = "1.21.0"
-predicates = "2.1.1"
-pretty_assertions = "1.3.0"
-serial_test = "0.9.0"
+moon_config = { path = "../config" }
+moon_task = { path = "../task" }
+moon_task_runner = { path = "../task-runner" }
+moon_test_utils = { path = "../../legacy/core/test-utils" }
+moon_test_utils2 = { path = "../test-utils" }
+moon_vcs = { path = "../vcs" }
+httpmock = "0.7.0"
+proto_core = { workspace = true }
+rustc-hash = { workspace = true }
+serial_test = { workspace = true }
+starbase_archive = { workspace = true }
+starbase_sandbox = { workspace = true }
+
+[lints]
+workspace = true

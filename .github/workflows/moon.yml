@@ -1,18 +1,28 @@
 name: Moon
+
 on:
   push:
     branches:
       - master
   pull_request:
     paths:
+      - .cargo/config.toml
       - .github/workflows/moon.yml
-      - .moon/workspace.yml
-      - .moon/project.yml
+      - .moon/*
       - crates/**
+      - legacy/**
       - packages/**
       - website/**
       - package.json
       - yarn.lock
+      - Cargo.lock
+      - Cargo.toml
+      - rust-toolchain.toml
+
+env:
+  # For setup-rust
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
   ci:
     name: CI
@@ -20,48 +30,53 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        node-version: [16, 18]
+        node-version: [18, 20, 22]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/cache@v3
-        name: Cache cargo
+      - uses: actions/setup-node@v4
+      - uses: moonrepo/setup-rust@v1
         with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
-      - uses: actions/cache@v3
-        name: Cache node modules
-        with:
-          path: |
-            ~/.yarn
-            .yarn/install-state.gz
-          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: ${{ runner.os }}-yarn-
-      - uses: actions/cache@v3
-        name: Cache moon toolchain
-        with:
-          path: ~/.moon/tools
-          key:
-            ${{ runner.os }}-moon-node@${{ matrix.node-version }}-${{
-            hashFiles('.moon/workspace.yml') }}
-          restore-keys: ${{ runner.os }}-moon-node@${{ matrix.node-version }}-
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.64.0
-          profile: minimal
-      - uses: moonrepo/tool-version-action@v1
-        with:
-          node: ${{ matrix.node-version }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -- --color --log trace ci --base ${{ github.base_ref || 'master' }}
+          cache-base: '^(master|develop-)'
+      - run: cargo run -- --color --log trace ci --base ${{ github.base_ref || 'master' }}
+        env:
+          DEPOT_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+          MOON_NODE_VERSION: ${{ matrix.node-version }}
+          RUST_BACKTRACE: '1'
       - uses: moonrepo/run-report-action@v1
+        if: success() || failure()
         with:
           access-token: ${{ secrets.GITHUB_TOKEN }}
           matrix: ${{ toJSON(matrix) }}
+  docker:
+    if: ${{ github.repository == 'moonrepo/moon' }}
+    name: Docker
+    # Older required for Docker libc
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: depot/setup-action@v1
+      - uses: moonrepo/setup-rust@v1
+        with:
+          cache: false
+      - run: cargo build
+      - run: ./target/debug/moon --version
+      # Non-staged
+      - run: ./target/debug/moon docker scaffold website --include '*.config.js' --log debug
+        env:
+          MOON_SKIP_SETUP_TOOLCHAIN: '*'
+      - uses: depot/build-push-action@v1
+        with:
+          context: .
+          push: false
+          file: ./tests/docker/Dockerfile
+      # Staged
+      - uses: depot/build-push-action@v1
+        with:
+          context: .
+          push: false
+          file: ./tests/docker/Dockerfile.staged

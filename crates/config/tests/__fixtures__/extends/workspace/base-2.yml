@@ -1,0 +1,4 @@
+extends: './base-1.yml'
+
+runner:
+  logRunningCommand: false

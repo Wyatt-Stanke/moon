@@ -1,13 +1,13 @@
 language: javascript
 
+tags: [standard]
+
 tasks:
   standard:
-    command: node
-    args: -e "console.log('deps=b')"
+    command: noop
 
   dependencyOrder:
-    command: node
-    args: -e "console.log('deps=b')"
+    command: noop
     deps:
       - 'depsC:dependencyOrder'
 

@@ -1,5 +1,10 @@
+# Bump
+
 language: typescript
 type: application
+
+project:
+  description: 'A static website powered by Docusaurus.'
 
 dependsOn:
   - id: 'runtime'
@@ -9,11 +14,14 @@ dependsOn:
 
 tasks:
   build:
+    description: 'Builds the Docusaurus app.'
     command: 'docusaurus build'
     deps:
       - '^:build'
     outputs:
       - 'build'
+    options:
+      shell: true
 
   start:
     command: 'docusaurus start'
@@ -22,11 +30,16 @@ tasks:
     local: true
 
   typecheck:
-    command: 'tsc --build --pretty --verbose'
+    command: 'tsc --build --pretty'
     inputs:
       - '@globs(sources)'
       - '*.js'
       - 'tsconfig.json'
+
+  # ctrlc:
+  #   command: 'node ./cases/ctrlc.mjs'
+  #   options:
+  #     interactive: true
 
 workspace:
   inheritedTasks:

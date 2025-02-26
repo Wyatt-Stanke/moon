@@ -23,11 +23,8 @@ globs:
 - `[a-z]` - Matches one case-sensitive character in range in the brackets.
 - `[!x-z]` - Like the above, but will match any character _not_ in range.
 - `{glob,glob}` - Matches one or more comma separated list of sub-glob patterns.
-- `<glob:#>` - Matches a sub-glob within a defined bounds (represented by `#`).
+- `<glob:n,n>` - Matches a sub-glob within a defined bounds.
 - `!` - At the start of a pattern, will negate previous positive patterns.
-
-> The biggest difference between JavaScript and Rust globs is `?`. In JavaScript, this marks the
-> preceding character as optional, while in Rust it matches exactly 1 character.
 
 ### Examples
 
@@ -43,15 +40,15 @@ logs/<[0-9]:4>-<[0-9]:2>-<[0-9]:2>.log
 
 When configuring [`fileGroups`](../config/project#filegroups), [`inputs`](../config/project#inputs),
 and [`outputs`](../config/project#outputs), all listed file paths and globs are relative from the
-project root they will be ran in. They _must not_ start with `./`, or traverse upwards with `..`.
+project root they will be ran in. They _must not_ traverse upwards with `..`.
 
 ```bash
 # Valid
 src/**/*
+./src/**/*
 package.json
 
 # Invalid
-./src/**/*
 ../utils
 ```
 

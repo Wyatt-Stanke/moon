@@ -7,6 +7,9 @@ tag="${NPM_CHANNEL:-latest}"
 source "$dir/setupNpm.sh"
 
 # We only want to publish packages NOT relating to the Rust binary
+echo "Publishing secondary packages"
+echo "Channel: $tag"
+
 for package in packages/*; do
 	echo "$package"
 
@@ -18,7 +21,7 @@ for package in packages/*; do
 		echo "Not publishing"
 	else
 		cd "./$package" || exit
-		# We cant use npm because of: https://github.com/npm/cli/issues/2610
+		# We can't use npm because of: https://github.com/npm/cli/issues/2610
 		yarn npm publish --tag "$tag" --access public
 		cd ../..
 	fi

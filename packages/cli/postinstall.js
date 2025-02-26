@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 // Based on the great parcel-css
 // https://github.com/parcel-bundler/parcel-css/blob/master/cli/postinstall.js
 
@@ -13,7 +15,11 @@ const isMacos = process.platform === 'darwin';
 const isWindows = process.platform === 'win32';
 
 const platform = isWindows ? 'windows' : isMacos ? 'macos' : process.platform;
-const parts = [platform, process.arch];
+const arch =
+	process.env['npm_config_user_agent'] && process.env['npm_config_user_agent'].match(/^bun.*arm64$/)
+		? 'arm64'
+		: process.arch; // https://github.com/moonrepo/moon/issues/1103
+const parts = [platform, arch];
 
 if (isLinux) {
 	const { familySync } = require('detect-libc');
@@ -36,12 +42,16 @@ const pkgPath = path.dirname(require.resolve(`@moonrepo/core-${triple}/package.j
 const binPath = path.join(pkgPath, binary);
 
 try {
+	const linkPath = path.join(__dirname, binary);
+
 	if (fs.existsSync(binPath)) {
 		try {
-			fs.linkSync(binPath, path.join(__dirname, binary));
+			fs.linkSync(binPath, linkPath);
 		} catch {
-			fs.copyFileSync(binPath, path.join(__dirname, binary));
+			fs.copyFileSync(binPath, linkPath);
 		}
+
+		fs.chmodSync(linkPath, 0o755);
 	} else {
 		throw new Error();
 	}
@@ -51,16 +61,4 @@ try {
 	if (!isMoonLocal) {
 		// process.exit(1);
 	}
-}
-
-if (isWindows && !isMoonLocal) {
-	try {
-		fs.unlinkSync(path.join(__dirname, 'moon'));
-
-		// This is required for pnpm!
-		const pkg = require('./package.json');
-		pkg.bin.moon = binary;
-
-		fs.writeFileSync(path.join(__dirname, 'package.json'), JSON.stringify(pkg, null, 2));
-	} catch (error) {}
 }

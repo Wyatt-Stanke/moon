@@ -1,38 +1,61 @@
-# Trigger CI: 6
+# Trigger CI: 26
 
-$schema: '../schemas/workspace.json'
+$schema: '../website/static/schemas/workspace.json'
 
 projects:
-  - 'packages/*'
-  - '!packages/cli'
-  - '!packages/core-*'
-  - 'website'
-
-node:
-  version: '16.17.0'
-  packageManager: 'yarn'
-  yarn:
-    version: '3.2.3'
-    plugins:
-      - 'interactive-tools'
-      - 'version'
-      - 'workspace-tools'
-  addEnginesConstraint: false
-  inferTasksFromScripts: false
-
-typescript:
-  routeOutDirToCache: true
-  syncProjectReferences: true
+  # sources:
+  #   moon: '.'
+  sources: {}
+  globs:
+    - './packages/*'
+    - '!packages/cli'
+    - '!packages/core-*'
+    # - 'scenarios/*'
+    - 'website'
 
 generator:
   templates:
-    - './templates'
+    # - './.moon/templates'
     - './tests/fixtures/generator/templates'
 
 runner:
-  implicitDeps:
-    - '^:build'
+  archivableTargets:
+    - ':lint'
+    - ':test'
+    - ':typecheck'
   logRunningCommand: true
 
 vcs:
   defaultBranch: 'master'
+  # hooks:
+  #   pre-commit:
+  #     - 'cargo run -- run :lint'
+
+docker:
+  scaffold:
+    include:
+      - '*.config.js'
+      - '*.json'
+
+unstable_remote:
+  # DEPOT
+  host: 'grpcs://cache.depot.dev'
+  auth:
+    token: 'DEPOT_TOKEN'
+    headers:
+      'X-Depot-Org': '1xtpjd084j'
+      'X-Depot-Project': '90xxfkst9n'
+  # BAZEL-REMOTE
+  # host: 'grpc://0.0.0.0:9092'
+  # cache:
+  #   compression: 'zstd'
+  # TLS TESTING
+  # mtls:
+  #   caCert: 'crates/remote/tests/__fixtures__/certs-local/ca.pem'
+  #   clientCert: 'crates/remote/tests/__fixtures__/certs-local/client.pem'
+  #   clientKey: 'crates/remote/tests/__fixtures__/certs-local/client.key'
+  #   domain: 'localhost'
+  # tls:
+  #   # assumeHttp2: true
+  #   cert: 'crates/remote/tests/__fixtures__/certs-local/client.pem'
+  #   domain: 'localhost'

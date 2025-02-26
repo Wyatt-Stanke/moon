@@ -1,0 +1,129 @@
+---
+title: Action graph
+---
+
+import ActionGraph from '@site/src/components/Docs/ActionGraph';
+
+When you run a [task](../config/project#tasks-1) on the command line, we generate an action graph to
+ensure [dependencies](../config/project#deps) of tasks have ran before running run the primary task.
+
+The action graph is a representation of all [tasks](../concepts/task), derived from the
+[project graph](./project-graph) and [task graph](./task-graph), and is also represented internally
+as a directed acyclic graph (DAG).
+
+<ActionGraph />
+
+## Actions
+
+Unlike other task runners in the industry that represent each node in the graph as a task to run, we
+represent each node in the graph as an action to perform. This allows us to be more flexible and
+efficient with how we run tasks, and allows us to provide more functionality and automation than
+other runners.
+
+The following actions compose our action graph:
+
+### Sync workspace
+
+This is a common action that always runs and give's moon a chance to perform operations and health
+checks across the entire workspace.
+
+:::info
+
+This action can be skipped by setting the `MOON_SKIP_SYNC_WORKSPACE=true` environment variable.
+
+:::
+
+### Setup toolchain
+
+The most important action in the graph is the setup toolchain action, which downloads and installs a
+tier 3 language into the toolchain. For other tiers, this is basically a no-operation.
+
+- When the tool has already been installed, this action will be skipped.
+- Actions will be scoped by language and version, also known as a runtime. For example,
+  `SetupToolchain(node:18.1.0)` or `SetupToolchain(deno:1.31.0)`.
+- Tools that require a global binary (found on `PATH`) will display the version as "global". For
+  example, `SetupToolchain(node:global)`.
+
+:::info
+
+This action can be skipped by setting the `MOON_SKIP_SETUP_TOOLCHAIN=true` environment variable. The
+skip can be scoped per tool by setting the value to the tool name (`node`), and also by version
+(`node:20.0.0`). Supports a comma-separated list.
+
+:::
+
+### Install dependencies
+
+Before we run a task, we ensure that all language dependencies (`node_modules` for example) have
+been installed, by automatically installing them if we detect changes since the last run. We achieve
+this by comparing lockfile modified timestamps, parsing manifest files, and hashing resolved
+dependency versions.
+
+- When dependencies do _not_ need to be installed, this action will be skipped.
+- Depending on the language and configuration, we may install dependencies in a project
+  (`InstallProjectDeps`), or in the workspace root for all projects (`InstallWorkspaceDeps`).
+- Actions will be scoped by language and version, also known as a runtime. For example,
+  `InstallWorkspaceDeps(node:18.1.0)` or `InstallProjectDeps(node:18.1.0, example)`.
+
+> This action depends on the setup toolchain action, because we utilize the binaries in the
+> toolchain to install dependencies.
+
+:::info
+
+This action can be skipped by setting the `MOON_SKIP_INSTALL_DEPS=true` environment variable. The
+skip can be scoped per tool by setting the value to the tool name (`node`), and also by project
+(`node:app`). Supports a comma-separated list.
+
+:::
+
+### Sync project
+
+To ensure a consistently healthy project and repository, we run a process known as syncing
+_everytime_ a task is ran. Actions will be scoped by language, for example,
+`SyncProject(node, example)`.
+
+What is synced or considered healthcare is dependent on the language and its ecosystem.
+
+- JavaScript
+  - Syncs `package.json` dependencies based on [project graph](./project-graph) dependencies.
+  - Applies [`deno`](../config/toolchain#deno) and [`node`](../config/toolchain#node) related
+    settings.
+- TypeScript
+  - Syncs project references based on [project graph](./project-graph) dependencies.
+  - Applies [`typescript`](../config/toolchain#typescript) related settings.
+
+> This action depends on the setup toolchain action, in case it requires binaries or functionality
+> that the toolchain provides.
+
+:::info
+
+This action can be skipped by setting the `MOON_SKIP_SYNC_PROJECT=true` environment variable. The
+skip can be scoped per project by setting the value to the project ID (`app`). Supports a
+comma-separated list.
+
+:::
+
+### Run task
+
+The primary action in the graph is the run [task](../concepts/task) action, which runs a project's
+task as a child process, derived from a [target](../concepts/target). Tasks can depend on other
+tasks, and they'll be effectively orchestrated and executed by running in topological order using a
+thread pool.
+
+> This action depends on the previous actions, as the toolchain is used for running the task's
+> command, and the outcome of the task is best when the project state is healthy and deterministic.
+
+### Run interactive task
+
+Like the base run task, but runs the [task interactively](../concepts/task#interactive) with stdin
+capabilities. All interactive tasks are run in isolation in the graph.
+
+### Run persistent task
+
+Like the base run task, but runs the [task in a persistent process](../concepts/task#persistent)
+that never exits. All persistent tasks are run in parallel as the last batch in the graph.
+
+## What is the graph used for?
+
+Without the action graph, tasks would not efficiently run, or possibly at all! The graph helps to
+run tasks in parallel, in the correct order, and to ensure a reliable outcome.

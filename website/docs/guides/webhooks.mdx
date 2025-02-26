@@ -1,0 +1,461 @@
+---
+title: Webhooks (experimental)
+toc_max_heading_level: 6
+---
+
+import HeadingApiLink from '@site/src/components/Docs/HeadingApiLink';
+
+Looking to gather metrics for your pipelines? Gain insight into run durations and failures? Maybe
+you want to send Slack or Discord notifications? With our webhooks, all of these are possible!
+
+When the [`notifier.webhookUrl`](../config/workspace#webhookurl) setting is configured with an HTTPS
+URL, and moon is running in a CI environment, moon will POST a payload to this endpoint for every
+event in our pipeline.
+
+## Payload structure
+
+Every webhook event is posted with the following request body, known as a payload.
+
+- `type` (`string`) - The type of [event](#events).
+- `environment` (`object | null`) - Information about the current CI/CD pipeline environment.
+- `event` (`object`) - The event specific payload. View each event for an example of their
+  structure.
+- `createdAt` (`string`) - When the event was created, as a UTC timestamp in ISO 8601 (RFC 3339)
+  format.
+- `uuid` (`string`) - A unique identifier for all webhooks in the current run batch.
+
+```json
+{
+  "type": "...",
+  "environment": "...",
+  "event": {
+    // ...
+  },
+  "createdAt": "...",
+  "uuid": "..."
+}
+```
+
+> The `uuid` field can be used to differentiate concurrently running pipelines!
+
+### Pipeline environment
+
+When webhooks are sent from a CI/CD pipeline, we attempt to include information about the
+environment under the `environment` field. If information could not be detected, this field is null,
+otherwise it contains these fields.
+
+- `baseBranch` (`string | null`) - When a merge/pull request, the target (base) branch, otherwise
+  null.
+- `branch` (`string`) - When a merge/pull request, the source (head) branch, otherwise the
+  triggering branch.
+- `id` (`string`) - ID of the current pipeline instance.
+- `provider` (`string`) - Name of your CI/CD provider. GitHub Actions, GitLab, CircleCI, etc.
+- `requestId` (`string | null`) - The ID of the merge/pull request.
+- `requestUrl` (`string | null`) - Link to the merge/pull request.
+- `revision` (`string`) - The HEAD commit, revision, tag, ref, etc, that triggered the pipeline.
+- `url` (`string | null`) - Link to the current pipeline, when available.
+
+## Events
+
+### Pipeline
+
+Runs actions within moon using a robust dependency graph. Is triggered when using
+[`moon run`](../commands/run).
+
+### `pipeline.started`
+
+<HeadingApiLink to="/api/types#PayloadPipelineStarted" />
+
+Triggered when the pipeline has been created but before actions have started to run.
+
+This event includes the number of actions registered within the pipeline, but does not provide
+detailed information about the actions. Use the [`action.*`](#actionstarted) events for this.
+
+```json
+{
+  "type": "pipeline.started",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "actionsCount": 15
+  },
+  "uuid": "..."
+}
+```
+
+### `pipeline.finished`
+
+<HeadingApiLink to="/api/types#PayloadPipelineFinished" />
+
+Triggered when the pipeline has finished running all actions, with aggregated counts based on final
+status.
+
+This event is _not_ triggered if the pipeline crashes (this does not include actions that have
+failed, as those are legitimate runs). Use the [`pipeline.aborted`](#pipelineaborted) event if you
+want to also catch crashes.
+
+```json
+{
+  "type": "pipeline.finished",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "cachedCount": 10,
+    "baselineDuration": {
+      "secs": 60,
+      "nanos": 3591693
+    },
+    "duration": {
+      "secs": 120,
+      "nanos": 3591693
+    },
+    "estimatedSavings": {
+      "secs": 60,
+      "nanos": 0
+    },
+    "failedCount": 1,
+    "passedCount": 4
+  },
+  "uuid": "..."
+}
+```
+
+### `pipeline.aborted`
+
+<HeadingApiLink to="/api/types#PayloadPipelineAborted" />
+
+Triggered when the pipeline has crashed for unknown reasons, or had to abort as a result of a
+critical action failing.
+
+```json
+{
+  "type": "pipeline.aborted",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "error": "..."
+  },
+  "uuid": "..."
+}
+```
+
+### Actions
+
+Actions are "jobs" within the pipeline that are executed topologically.
+
+### `action.started`
+
+<HeadingApiLink to="/api/types#PayloadActionStarted" />
+
+Triggered when an action within the pipeline has started to run.
+
+```json
+{
+  "type": "action.started",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "action": {
+      "attempts": null,
+      "createdAt": "...",
+      "duration": {
+        "secs": 0,
+        "nanos": 3591693
+      },
+      "error": null,
+      "label": "InstallWorkspaceDeps(node:18.0.0)",
+      "nodeIndex": 5,
+      "status": "passed"
+    },
+    "node": {
+      "action": "InstallDeps",
+      "params": [
+        {
+          "toolchain": "Node",
+          "version": "18.0.0"
+        }
+      ]
+    }
+  },
+  "uuid": "..."
+}
+```
+
+### `action.finished`
+
+<HeadingApiLink to="/api/types#PayloadActionFinished" />
+
+Triggered when an action within the pipeline has finished running, either with a success or failure.
+If the action failed, the `error` field will be set with the error message.
+
+```json
+{
+  "type": "action.finished",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "action": {
+      "attempts": null,
+      "createdAt": "...",
+      "duration": {
+        "secs": 0,
+        "nanos": 3591693
+      },
+      "error": null,
+      "label": "InstallWorkspaceDeps(node:18.0.0)",
+      "nodeIndex": 5,
+      "status": "passed"
+    },
+    "error": null,
+    "node": {
+      "action": "InstallDeps",
+      "params": {
+        "toolchain": "Node",
+        "version": "18.0.0"
+      }
+    }
+  },
+  "uuid": "..."
+}
+```
+
+### `dependencies.installing`
+
+<HeadingApiLink to="/api/types#PayloadDependenciesInstalling" />
+
+Triggered when dependencies for a workspace or project have started to install. When targeting a
+project, the `project` field will be set, otherwise `null` for the entire workspace.
+
+```json
+{
+  "type": "dependencies.installing",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "project": {
+      "id": "server"
+      // ...
+    },
+    "runtime": {
+      "toolchain": "Node",
+      "version": "18.0.0"
+    }
+  },
+  "uuid": "..."
+}
+```
+
+### `dependencies.installed`
+
+<HeadingApiLink to="/api/types#PayloadDependenciesInstalled" />
+
+Triggered when dependencies for a workspace or project have finished installing. When targeting a
+project, the `project` field will be set, otherwise `null` for the entire workspace. If the install
+failed, the `error` field will be set with the error message.
+
+For more information about the action, refer to the [`action.finished`](#actionfinished) event.
+Installed deps can be scoped with the `InstallDeps(...)` labels.
+
+```json
+{
+  "type": "dependencies.installed",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "error": null,
+    "project": null,
+    "runtime": {
+      "toolchain": "Node",
+      "version": "18.0.0"
+    }
+  },
+  "uuid": "..."
+}
+```
+
+### `project.syncing`
+
+<HeadingApiLink to="/api/types#PayloadProjectSyncing" />
+
+Triggered when an affected project has started syncing its workspace state. This occurs
+automatically before a project's task is ran.
+
+```json
+{
+  "type": "project.syncing",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "project": {
+      "id": "client"
+      // ...
+    },
+    "runtime": {
+      "toolchain": "Node",
+      "version": "18.0.0"
+    }
+  },
+  "uuid": "..."
+}
+```
+
+### `project.synced`
+
+<HeadingApiLink to="/api/types#PayloadProjectSynced" />
+
+Triggered when an affected project has finished syncing. If the sync failed, the `error` field will
+be set with the error message.
+
+For more information about the action, refer to the [`action.finished`](#actionfinished) event.
+Synced projects can be scoped with the `SyncProject(...)` labels.
+
+```json
+{
+  "type": "project.synced",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "error": null,
+    "project": {
+      "id": "client"
+      // ...
+    },
+    "runtime": {
+      "toolchain": "Node",
+      "version": "18.0.0"
+    }
+  },
+  "uuid": "..."
+}
+```
+
+### `tool.installing`
+
+<HeadingApiLink to="/api/types#PayloadToolInstalling" />
+
+Triggered when a tool within the toolchain has started downloading and installing.
+
+This event is _always_ triggered, regardless of whether the tool has already been installed or not.
+For an accurate state, use the [`action.finished`](#actionfinished) event. If the `status` is
+"skipped", then the tool was already installed.
+
+```json
+{
+  "type": "tool.installing",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "runtime": {
+      "toolchain": "Node",
+      "version": "18.0.0"
+    }
+  },
+  "uuid": "..."
+}
+```
+
+### `tool.installed`
+
+<HeadingApiLink to="/api/types#PayloadToolInstalled" />
+
+Triggered when a tool within the toolchain has finished installing. If the install failed, the
+`error` field will be set with the error message.
+
+For more information about the action, refer to the [`action.finished`](#actionfinished) event.
+Tools can be scoped with the `SetupToolchain(...)` labels.
+
+```json
+{
+  "type": "tool.installed",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "error": null,
+    "runtime": {
+      "toolchain": "Node",
+      "version": "18.0.0"
+    }
+  },
+  "uuid": "..."
+}
+```
+
+### `task.running`
+
+<HeadingApiLink to="/api/types#PayloadTaskRunning" />
+
+Triggered when a [task](../concepts/task) has started to run (via [`moon run`](../commands/run) or
+similar command).
+
+```json
+{
+  "type": "task.running",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "target": "app:build"
+  },
+  "uuid": "..."
+}
+```
+
+### `task.ran`
+
+<HeadingApiLink to="/api/types#PayloadTaskRan" />
+
+Triggered when a [task](../concepts/task) has finished running. If the run failed, the `error` field
+will be set with the error message.
+
+For more information about the action, refer to the [`action.finished`](#actionfinished) event. Ran
+tasks can be scoped with the `RunTask(...)`, `RunInteractiveTask(...)`, and `RunPersistentTask(...)`
+labels.
+
+```json
+{
+  "type": "task.ran",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "error": null,
+    "target": "app:build"
+  },
+  "uuid": "..."
+}
+```
+
+### `workspace.syncing`
+
+<HeadingApiLink to="/api/types#PayloadWorkspaceSyncing" />
+
+Triggered when the workspace is being synced.
+
+```json
+{
+  "type": "workspace.syncing",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "target": "app:build"
+  },
+  "uuid": "..."
+}
+```
+
+### `workspace.synced`
+
+<HeadingApiLink to="/api/types#PayloadWorkspaceSynced" />
+
+Triggered when the workspace has finished syncing. If the action failed, the `error` field will be
+set with the error message.
+
+```json
+{
+  "type": "workspace.synced",
+  "createdAt": "...",
+  "environment": "...",
+  "event": {
+    "error": null
+  },
+  "uuid": "..."
+}
+```

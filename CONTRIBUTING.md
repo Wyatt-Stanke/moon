@@ -7,40 +7,47 @@ Contributions are always welcome, no matter how large or small!
 - Node.js >= v14.15
 - Rust >= 1.61
 - Git >= 2.28 (for `test-coverage`)
+- Just
 
 ## Setup
 
 On your first checkout of the repository, you'll need to install dependencies and build the project.
 
+Before following the rest of this guide you will need to install [Just](https://github.com/casey/just)
+
 ### Rust
 
-Moon is built on Rust and requires `rustup` and `cargo` to exist in your environment. You can
+moon is built on Rust and requires `rustup` and `cargo` to exist in your environment. You can
 [install Rust from the official website](https://www.rust-lang.org/tools/install).
 
 We also require the following 3rd-party Cargo commands, which can be installed with the following.
 
-```
-cargo install --force cargo-make # Required
-cargo install --force cargo-insta # For testing snapshots
+```bash
+just init
 ```
 
 Once setup, we suggest building the Rust binary, as it's required for everything else.
 
 ```bash
-cargo make build
+just build
 ```
 
 ### Node.js
 
 Contributing to our `@moonrepo` npm packages requires Node.js and Yarn. We suggest
-[installing Node.js with nvm](https://github.com/nvm-sh/nvm), and Yarn can later be installed with
-`npm install -g yarn`.
+[installing both with proto](https://moonrepo.dev/proto).
+
+```bash
+proto install node
+proto install yarn
+# or
+proto use
+```
 
 Once setup, install dependencies build initial packages.
 
 ```bash
 yarn install
-yarn build
 ```
 
 ## How to
@@ -77,9 +84,8 @@ repository with a runnable example, or a usable code snippet.
 
 ### Requesting new functionality
 
-Before requesting new functionality, view the
-[roadmap and backlog](https://github.com/moonrepo/moon/blob/master/ROADMAP.md) as your request may
-already exist. If it does not exist, submit an
+Before requesting new functionality, view [open issues](https://github.com/moonrepo/moon/issues) as
+your request may already exist. If it does not exist, submit an
 [issue using the official template](https://github.com/moonrepo/moon/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=).
 Be sure to be as descriptive as possible and to include all applicable labels.
 
@@ -94,33 +100,30 @@ The following commands are available and should be used in your standard develop
 
 ### Rust
 
-To streamline development, we utilize [cargo-make](https://github.com/sagiegurari/cargo-make) for
-common tasks.
+To streamline development, we utilize [Just](https://just.systems/) for common tasks.
 
-- `cargo make build` - Builds all crates into a single `moon` binary.
-- `cargo make format` - Formats code.
-- `cargo make lint` - Runs the linter.
-- `cargo make test` - Runs unit and integration tests.
-- `cargo make test-coverage` - Run tests and also generate code coverage reports.
+- `just build` - Builds all crates into a single `moon` binary.
+- `just format` - Formats code.
+- `just lint` - Runs the linter.
+- `just test` - Runs unit and integration tests.
+- `just cov` - Run tests and also generate code coverage reports.
 
 #### Code coverage
 
-We support source based code coverage with [grcov](https://github.com/mozilla/grcov) via unit and
-integration testing. To begin, install the necessary tooling:
+We support source based code coverage with [llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) via
+unit and integration testing. To begin, install the necessary tooling:
 
 ```
 rustup component add llvm-tools-preview
-cargo install --force grcov
+cargo install cargo-llvm-cov
 ```
 
-Once installed, run `cargo make test-coverage`, which is a lengthy and time consuming process. This
-will build the binary in debug mode with instrumentation enabled, run all unit and integration
-tests, and generate _a ton_ of `*.profraw` files in the repository (do not commit these!).
+Once installed, run `just cov`, which is a lengthy and time consuming process. This will build the
+binary in debug mode with instrumentation enabled, run all unit and integration tests, and generate
+_a ton_ of `*.profraw` files in the repository (do not commit these!).
 
-From here you can generate an HTML coverage report to `./coverage` with `cargo make generate-html`. 
-Open the `index.html` file to browse line-by-line coverage.
-
-Once done, run `cargo make clean-profraw` to cleanup and remove all the `*.profraw` files.
+From here you can generate an HTML coverage report to `./coverage` with `just gen-html`. Open the
+`index.html` file to browse line-by-line coverage.
 
 ### Node.js
 

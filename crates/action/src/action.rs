@@ -1,79 +1,66 @@
-use moon_utils::time::chrono::prelude::*;
+use crate::action_node::ActionNode;
+use crate::operation_list::OperationList;
+use moon_time::chrono::NaiveDateTime;
+use moon_time::now_timestamp;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-fn has_failed(status: &ActionStatus) -> bool {
-    matches!(status, ActionStatus::Failed) || matches!(status, ActionStatus::FailedAndAbort)
+#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ActionPipelineStatus {
+    Aborted,
+    Completed,
+    Interrupted,
+    Terminated,
+    #[default]
+    Pending,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ActionStatus {
     Cached,
-    // CachedFromRemote, // TODO
+    CachedFromRemote,
     Failed,
-    FailedAndAbort,
     Invalid,
     Passed,
+    #[default]
     Running,
     Skipped, // When nothing happened
+
+    // Pipeline
+    TimedOut,
+    Aborted,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Attempt {
-    pub duration: Option<Duration>,
-
-    pub finished_at: Option<DateTime<Utc>>,
-
-    pub index: u8,
-
-    pub started_at: DateTime<Utc>,
-
-    #[serde(skip)]
-    pub start_time: Option<Instant>,
-
-    pub status: ActionStatus,
-}
-
-impl Attempt {
-    pub fn new(index: u8) -> Self {
-        Attempt {
-            duration: None,
-            finished_at: None,
-            index,
-            started_at: Utc::now(),
-            start_time: Some(Instant::now()),
-            status: ActionStatus::Running,
-        }
-    }
-
-    pub fn done(&mut self, status: ActionStatus) {
-        self.finished_at = Some(Utc::now());
-        self.status = status;
-
-        if let Some(start) = &self.start_time {
-            self.duration = Some(start.elapsed());
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Action {
-    pub attempts: Option<Vec<Attempt>>,
+    pub allow_failure: bool,
 
-    pub created_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
 
     pub duration: Option<Duration>,
 
     pub error: Option<String>,
 
+    #[serde(skip)]
+    pub error_report: Option<miette::Report>,
+
+    pub finished_at: Option<NaiveDateTime>,
+
     pub flaky: bool,
 
-    pub label: Option<String>,
+    pub label: String,
+
+    pub node: Arc<ActionNode>,
 
     pub node_index: usize,
+
+    pub operations: OperationList,
+
+    pub started_at: Option<NaiveDateTime>,
 
     #[serde(skip)]
     pub start_time: Option<Instant>,
@@ -82,25 +69,36 @@ pub struct Action {
 }
 
 impl Action {
-    pub fn new(node_index: usize, label: Option<String>) -> Self {
+    pub fn new(node: ActionNode) -> Self {
         Action {
-            attempts: None,
-            created_at: Utc::now(),
+            allow_failure: false,
+            created_at: now_timestamp(),
             duration: None,
             error: None,
+            error_report: None,
+            finished_at: None,
             flaky: false,
-            label,
-            node_index,
-            start_time: Some(Instant::now()),
+            label: node.label(),
+            node: Arc::new(node),
+            node_index: 0,
+            operations: OperationList::default(),
+            started_at: None,
+            start_time: None,
             status: ActionStatus::Running,
         }
     }
 
     pub fn abort(&mut self) {
-        self.status = ActionStatus::FailedAndAbort;
+        self.status = ActionStatus::Aborted;
     }
 
-    pub fn done(&mut self, status: ActionStatus) {
+    pub fn start(&mut self) {
+        self.started_at = Some(now_timestamp());
+        self.start_time = Some(Instant::now());
+    }
+
+    pub fn finish(&mut self, status: ActionStatus) {
+        self.finished_at = Some(now_timestamp());
         self.status = status;
 
         if let Some(start) = &self.start_time {
@@ -108,33 +106,48 @@ impl Action {
         }
     }
 
-    pub fn fail(&mut self, error: String) {
-        self.error = Some(error);
-        self.done(ActionStatus::Failed);
+    pub fn fail(&mut self, error: miette::Report) {
+        self.error = Some(error.to_string());
+        self.error_report = Some(error);
     }
 
     pub fn has_failed(&self) -> bool {
-        has_failed(&self.status)
+        matches!(
+            &self.status,
+            ActionStatus::Aborted | ActionStatus::Failed | ActionStatus::TimedOut
+        )
     }
 
-    pub fn set_attempts(&mut self, attempts: Vec<Attempt>) -> bool {
-        let some_failed = attempts.iter().any(|a| has_failed(&a.status));
-        let passed = match attempts.last() {
-            Some(a) => matches!(a.status, ActionStatus::Passed),
-            None => true,
-        };
+    pub fn get_duration(&self) -> &Duration {
+        self.duration
+            .as_ref()
+            .expect("Cannot get action duration, has it finished?")
+    }
 
-        self.attempts = Some(attempts);
-        self.flaky = some_failed && passed;
+    pub fn get_error(&mut self) -> miette::Report {
+        if let Some(report) = self.error_report.take() {
+            return report;
+        }
 
-        passed
+        if let Some(error) = &self.error {
+            return miette::miette!("{error}");
+        }
+
+        miette::miette!("Unknown error!")
     }
 
     pub fn should_abort(&self) -> bool {
-        matches!(self.status, ActionStatus::FailedAndAbort)
+        matches!(self.status, ActionStatus::Aborted)
+    }
+
+    pub fn should_bail(&self) -> bool {
+        !self.allow_failure && self.has_failed()
     }
 
     pub fn was_cached(&self) -> bool {
-        matches!(self.status, ActionStatus::Cached)
+        matches!(
+            self.status,
+            ActionStatus::Cached | ActionStatus::CachedFromRemote
+        )
     }
 }

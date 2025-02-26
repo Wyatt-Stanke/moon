@@ -1,14 +1,27 @@
 {
-  "extends": "@tsconfig/docusaurus/tsconfig.json",
-  "include": [
-    ".eslintrc.js",
-    "*.config.js",
-    "src/**/*"
+  "extends": [
+    "../tsconfig.options.json",
+    "@docusaurus/tsconfig"
   ],
   "compilerOptions": {
+    "emitDeclarationOnly": true,
+    "noEmit": false,
+    "outDir": "../.moon/cache/types/website",
+    "verbatimModuleSyntax": false,
     "baseUrl": ".",
-    "outDir": "../.moon/cache/types/website"
+    "paths": {
+      "@site/*": [
+        "./*"
+      ]
+    }
   },
+  "include": [
+    ".eslintrc.cjs",
+    "*.config.js",
+    "*.config.ts",
+    "sidebars.ts",
+    "src/**/*"
+  ],
   "references": [
     {
       "path": "../packages/runtime"

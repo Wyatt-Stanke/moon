@@ -1,17 +1,35 @@
 [package]
 name = "moon_workspace"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+license = "MIT"
+description = "Workspace utilities."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
 
 [dependencies]
 moon_cache = { path = "../cache" }
+moon_common = { path = "../common" }
 moon_config = { path = "../config" }
-moon_constants = { path = "../constants" }
-moon_error = { path = "../error" }
-moon_logger = { path = "../logger" }
+moon_hash = { path = "../hash" }
+moon_project = { path = "../project" }
+moon_project_builder = { path = "../project-builder" }
+moon_project_constraints = { path = "../project-constraints" }
 moon_project_graph = { path = "../project-graph" }
-moon_toolchain = { path = "../toolchain" }
-moon_utils = { path = "../utils" }
+moon_task = { path = "../task" }
+moon_task_builder = { path = "../task-builder" }
+moon_task_graph = { path = "../task-graph" }
 moon_vcs = { path = "../vcs" }
+moon_workspace_graph = { path = "../workspace-graph" }
+miette = { workspace = true }
+petgraph = { workspace = true }
+rustc-hash = { workspace = true }
+serde = { workspace = true }
+starbase_events = { workspace = true }
+starbase_utils = { workspace = true, features = ["glob", "json"] }
 thiserror = { workspace = true }
-tokio = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

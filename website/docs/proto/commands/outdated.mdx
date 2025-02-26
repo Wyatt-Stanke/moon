@@ -1,0 +1,35 @@
+---
+title: outdated
+---
+
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
+
+<VersionLabel version="0.19.0" header />
+
+The `proto outdated` command will load all [`.prototools`](../config) files and check for newer
+(matching configured range) and latest versions of each configured tool. Will also include the
+configuration file in which the version has been configured.
+
+```
+$ proto outdated
+
+╭───────────────────────────────────────────────────────────────────────╮
+│ Tool      Current Newest  Latest  Config                              │
+│───────────────────────────────────────────────────────────────────────│
+│ bun       1.1.42  1.1.42  1.1.42  /Users/name/.proto/.prototools      │
+│ node      23.5.0  23.5.0  23.5.0  /Users/name/.proto/.prototools      │
+│ npm       10.7.0  10.7.0  11.0.0  /Users/name/.proto/.prototools      │
+│ rust      1.83.0  1.83.0  1.83.0  /Users/name/.proto/.prototools      │
+│ yarn      3.6.3   3.8.7   4.5.1   /Users/name/.proto/.prototools      │
+╰───────────────────────────────────────────────────────────────────────╯
+```
+
+> By default, this command _does not_ check tools for versions pinned in the global
+> `~/.proto/.prototools` file. Pass `--config-mode all` to include them.
+
+### Options
+
+- `--json` - Print the list in JSON format.
+- `--latest` - When updating versions with `--update`, use the latest version instead of newest.
+- `--update` - Update and write newest/latest versions to their respective configuration.
+- `--yes` - Avoid and confirm all prompts. <VersionLabel version="0.44.0" />

@@ -1,0 +1,70 @@
+---
+slug: moon-v1.4
+title: moon v1.4 - New tag target scope, MQL support for query commands, and more!
+authors: [milesj]
+tags: [query, lang, tag, alias]
+image: ./img/moon/v1.4.png
+---
+
+With this release, we're bringing further improvements to tags and MQL.
+
+<!--truncate-->
+
+## Run targets by tag with `#tag:task`
+
+We love our community, as you all continuously suggest new and awesome features that haven't crossed
+our minds. One such feature was the ability to run tasks for all projects with a tag,
+[suggested by @theoephraim](https://github.com/moonrepo/moon/issues/803), which is now possible with
+the new [tag scope](/docs/concepts/target#by-tag), `#tag:task`.
+
+As an example, we can easily lint all projects that have the `frontend` tag.
+
+```shell
+$ moon run '#frontend:lint'
+```
+
+> Because `#` is special syntax and denotes a comment, the target will need to be quoted to work
+> correctly!
+
+## Updated `moon query` commands to support MQL
+
+Last week we announced [MQL](./moon-v1.3#run-targets-based-on-a-query), a custom query language for
+applying filters to moon's project graph, primarily through the [`moon run`](/docs/commands/run)
+command. We plan to slowly integrate MQL throughout moon as it provides an easy to use API, and an
+overall better developer experience.
+
+As such, we've updated both [`moon query projects`](/docs/commands/query/projects) and
+[`moon query tasks`](/docs/commands/query/tasks) to support MQL statements as an optional first
+argument. Totally makes sense that query commands would support MQL!
+
+```shell
+# Find all projects with a `lint` or `build` task
+$ moon query projects "task=[lint,build]"
+
+# Find all tasks with an id that starts with "dev"
+$ moon query tasks "task~dev-*"
+```
+
+## Deprecated `node.aliasPackageNames` setting
+
+moon project's support the [concept of aliasing](/docs/concepts/project#aliases), where
+language/ecosystem specific names are used alongside moon's. For example, the `name` field from
+`package.json`. However, aliasing was off by default for Node.js projects and had to be explicitly
+enabled with the `node.aliasPackageNames` setting.
+
+In an effort to streamline moon adoption for Node.js codebases, we're deprecating that setting, and
+instead will now always inherit the `package.json` name as an alias. For example, if you're package
+name was `@company/utils`, you can now run a target like so:
+
+```shell
+$ moon run @company/utils:build
+```
+
+> This setting is now a no-op and can be removed from your configuration.
+
+## Other changes
+
+View the [official release](https://github.com/moonrepo/moon/releases/tag/v1.4.0) for a full list of
+changes.
+
+- Upgraded to proto v0.8.

@@ -4,10 +4,9 @@ sidebar_label: ESLint
 ---
 
 import AddDepsTabs from '@site/src/components/AddDepsTabs';
+import HeadingApiLink from '@site/src/components/Docs/HeadingApiLink';
 
-> ESLint has been prototyped in our
-> [examples repository](https://github.com/moonrepo/examples/blob/master/.moon/project.yml#L59),
-> check it out!
+<HeadingApiLink to="https://github.com/moonrepo/examples/blob/master/.moon/tasks/node.yml#L59" />
 
 In this guide, you'll learn how to integrate [ESLint](https://eslint.org/) into moon.
 
@@ -19,49 +18,49 @@ the entire repository.
 ## Setup
 
 Since linting is a universal workflow, add a `lint` task to
-[`.moon/project.yml`](../../config/global-project) with the following parameters.
+[`.moon/tasks/node.yml`](../../config/tasks) with the following parameters.
 
-```yaml title=".moon/project.yml"
+```yaml title=".moon/tasks/node.yml"
 tasks:
-	lint:
-		command:
-		 	- 'eslint'
-			# Support other extensions
-			- '--ext'
-			- '.js,.jsx,.ts,.tsx'
-			# Always fix and run extra checks
-			- '--fix'
-			- '--report-unused-disable-directives'
-			# Dont fail if a project has nothing to lint
-			- '--no-error-on-unmatched-pattern'
-			# Do fail if we encounter a fatal error
-			- '--exit-on-fatal-error'
-			# Only 1 ignore file is supported, so use the root
-			- '--ignore-path'
-			- '@in(4)'
-			# Run in current dir
-			- '.'
-		inputs:
-			# Source and test files
-			- 'src/**/*'
-			- 'tests/**/*'
-			# Other config files
-			- '*.config.*'
-			# Project configs, any format, any depth
-			- '**/.eslintrc.*'
-			# Root configs, any format
-			- '/.eslintignore'
-			- '/.eslintrc.*'
+  lint:
+    command:
+      - 'eslint'
+      # Support other extensions
+      - '--ext'
+      - '.js,.jsx,.ts,.tsx'
+      # Always fix and run extra checks
+      - '--fix'
+      - '--report-unused-disable-directives'
+      # Dont fail if a project has nothing to lint
+      - '--no-error-on-unmatched-pattern'
+      # Do fail if we encounter a fatal error
+      - '--exit-on-fatal-error'
+      # Only 1 ignore file is supported, so use the root
+      - '--ignore-path'
+      - '@in(4)'
+      # Run in current dir
+      - '.'
+    inputs:
+      # Source and test files
+      - 'src/**/*'
+      - 'tests/**/*'
+      # Other config files
+      - '*.config.*'
+      # Project configs, any format, any depth
+      - '**/.eslintrc.*'
+      # Root configs, any format
+      - '/.eslintignore'
+      - '/.eslintrc.*'
 ```
 
 Projects can extend this task and provide additional parameters if need be, for example.
 
 ```yaml title="<project>/moon.yml"
 tasks:
-	lint:
-		args:
-			# Enable caching for this project
-			- '--cache'
+  lint:
+    args:
+      # Enable caching for this project
+      - '--cache'
 ```
 
 ### TypeScript integration
@@ -86,16 +85,16 @@ Create a `tsconfig.eslint.json` in your repository root, extend your shared comp
 
 Append the following inputs to your `lint` task.
 
-```yaml title=".moon/project.yml"
+```yaml title=".moon/tasks/node.yml"
 tasks:
-	lint:
-		# ...
-		inputs:
-			# TypeScript support
-			- 'types/**/*'
-			- 'tsconfig.json'
-			- '/tsconfig.eslint.json'
-			- '/tsconfig.options.json'
+  lint:
+    # ...
+    inputs:
+      # TypeScript support
+      - 'types/**/*'
+      - 'tsconfig.json'
+      - '/tsconfig.eslint.json'
+      - '/tsconfig.options.json'
 ```
 
 And lastly, add `parserOptions` to your [root-level config](#root-level).

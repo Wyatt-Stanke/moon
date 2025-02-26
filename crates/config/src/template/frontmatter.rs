@@ -1,43 +1,38 @@
-// template file frontmatter
-
-use crate::{errors::map_validation_errors_to_figment_errors, ConfigError};
-use figment::{
-    providers::{Format, Serialized, Yaml},
-    Figment,
-};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use validator::Validate;
+use schematic::Config;
 
 /// Docs: https://moonrepo.dev/docs/config/template#frontmatter
-#[derive(Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Validate)]
-#[schemars(default)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Config, Debug, Eq, PartialEq)]
 pub struct TemplateFrontmatterConfig {
-    pub force: Option<bool>,
+    #[setting(
+        default = "https://moonrepo.dev/schemas/template-frontmatter.json",
+        rename = "$schema"
+    )]
+    pub schema: String,
+
+    pub force: bool,
     pub to: Option<String>,
-    pub skip: Option<bool>,
+    pub skip: bool,
 }
 
+#[cfg(feature = "loader")]
 impl TemplateFrontmatterConfig {
-    #[track_caller]
-    pub fn parse<T: AsRef<str>>(content: T) -> Result<TemplateFrontmatterConfig, ConfigError> {
-        let content = content.as_ref();
-        let profile_name = "frontmatter";
-        let figment = Figment::from(
-            Serialized::defaults(TemplateFrontmatterConfig::default()).profile(&profile_name),
-        )
-        .merge(Yaml::string(content).profile(&profile_name))
-        .select(&profile_name);
+    pub fn parse<T: AsRef<str>>(content: T) -> miette::Result<TemplateFrontmatterConfig> {
+        use moon_common::color;
+        use schematic::{ConfigLoader, Format};
 
-        let config: TemplateFrontmatterConfig = figment.extract()?;
+        let mut content = content.as_ref();
 
-        if let Err(errors) = config.validate() {
-            return Err(ConfigError::FailedValidation(
-                map_validation_errors_to_figment_errors(&figment, &errors),
-            ));
+        if content.is_empty() {
+            content = "{}";
         }
 
-        Ok(config)
+        let result = ConfigLoader::<TemplateFrontmatterConfig>::new()
+            .set_help(color::muted_light(
+                "https://moonrepo.dev/docs/config/template",
+            ))
+            .code(content, Format::Yaml)?
+            .load()?;
+
+        Ok(result.config)
     }
 }

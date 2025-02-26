@@ -1,0 +1,16 @@
+[package]
+name = "moon_time"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Date and time utilities."
+homepage = "https://moonrepo.dev/moon"
+repository = "https://github.com/moonrepo/moon"
+publish = false
+
+[dependencies]
+chrono = { workspace = true }
+humantime = "2.1.0"
+
+[lints]
+workspace = true

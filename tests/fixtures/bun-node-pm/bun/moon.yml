@@ -1,0 +1,5 @@
+tasks:
+  help:
+    command: bun --help
+  viaScript:
+    script: 'echo "node platform" && bun --version && node --version'

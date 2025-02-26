@@ -1,132 +1,447 @@
-use moon_cli::enums::TouchedStatus;
-use moon_cli::queries::projects::QueryProjectsResult;
-use moon_cli::queries::touched_files::QueryTouchedFilesResult;
-use moon_utils::test::{
-    create_moon_command, create_sandbox, create_sandbox_with_git, get_assert_output,
-    run_git_command,
+use moon_app::queries::projects::*;
+use moon_app::queries::tasks::*;
+use moon_app::queries::touched_files::*;
+use moon_common::is_ci;
+use moon_test_utils::{
+    assert_snapshot, create_sandbox_with_config, get_assert_stdout_output,
+    get_cases_fixture_configs, get_projects_fixture_configs, predicates::prelude::*, Sandbox,
 };
-use moon_utils::{is_ci, string_vec};
-use std::fs;
-use std::path::Path;
+use moon_vcs::TouchedStatus;
+use starbase_utils::{json, string_vec};
 
-fn change_branch(path: &Path) {
-    run_git_command(path, |cmd| {
+fn change_branch(sandbox: &Sandbox) {
+    sandbox.run_git(|cmd| {
         cmd.args(["checkout", "-b", "branch"]);
     });
 }
 
-fn touch_file(path: &Path) {
-    fs::write(path.join("advanced/file"), "contents").unwrap();
+fn touch_file(sandbox: &Sandbox) {
+    sandbox.create_file("advanced/file", "contents");
+    sandbox.create_file("metadata/file", "contents");
+    sandbox.create_file("no-config/file", "contents");
 
     // CI uses `git diff` while local uses `git status`
     if is_ci() {
-        change_branch(path);
+        change_branch(sandbox);
 
-        run_git_command(path, |cmd| {
-            cmd.args(["add", "advanced/file"]);
+        sandbox.run_git(|cmd| {
+            cmd.args(["add", "advanced/file", "metadata/file", "no-config/file"]);
         });
 
-        run_git_command(path, |cmd| {
+        sandbox.run_git(|cmd| {
             cmd.args(["commit", "-m", "Touch"]);
         });
     }
 }
 
-mod projects {
-    use moon_utils::test::get_assert_stdout_output;
+mod hash {
+    use super::*;
+    use std::fs;
 
+    #[test]
+    fn errors_if_hash_doesnt_exist() {
+        let sandbox = create_sandbox_with_config("base", None, None, None);
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("hash").arg("a");
+        });
+
+        let output = assert.output();
+
+        assert!(predicate::str::contains("Unable to find a hash manifest for a!").eval(&output));
+    }
+
+    #[test]
+    fn prints_the_manifest() {
+        let sandbox = create_sandbox_with_config("base", None, None, None);
+
+        fs::create_dir_all(sandbox.path().join(".moon/cache/hashes")).unwrap();
+
+        fs::write(
+            sandbox.path().join(".moon/cache/hashes/a.json"),
+            r#"{
+    "command": "base",
+    "args": [
+        "a",
+        "b",
+        "c"
+    ]
+}"#,
+        )
+        .unwrap();
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("hash").arg("a");
+        });
+
+        assert_snapshot!(assert.output());
+    }
+
+    #[test]
+    fn prints_the_manifest_in_json() {
+        let sandbox = create_sandbox_with_config("base", None, None, None);
+
+        fs::create_dir_all(sandbox.path().join(".moon/cache/hashes")).unwrap();
+
+        fs::write(
+            sandbox.path().join(".moon/cache/hashes/a.json"),
+            r#"{
+    "command": "base",
+    "args": [
+        "a",
+        "b",
+        "c"
+    ]
+}"#,
+        )
+        .unwrap();
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("hash").arg("a").arg("--json");
+        });
+
+        assert_snapshot!(assert.output());
+    }
+}
+
+mod hash_diff {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn errors_if_left_doesnt_exist() {
+        let sandbox = create_sandbox_with_config("base", None, None, None);
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("hash-diff").arg("a").arg("b");
+        });
+
+        let output = assert.output();
+
+        assert!(predicate::str::contains("Unable to find a hash manifest for a!").eval(&output));
+    }
+
+    #[test]
+    fn errors_if_right_doesnt_exist() {
+        let sandbox = create_sandbox_with_config("base", None, None, None);
+
+        fs::create_dir_all(sandbox.path().join(".moon/cache/hashes")).unwrap();
+
+        fs::write(
+            sandbox.path().join(".moon/cache/hashes/a.json"),
+            r#"{
+    "command": "test",
+    "args": [
+        "a",
+        "b",
+        "c"
+    ]
+}"#,
+        )
+        .unwrap();
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("hash-diff").arg("a").arg("b");
+        });
+
+        let output = assert.output();
+
+        assert!(predicate::str::contains("Unable to find a hash manifest for b!").eval(&output));
+    }
+
+    #[test]
+    fn prints_a_diff() {
+        let sandbox = create_sandbox_with_config("base", None, None, None);
+
+        fs::create_dir_all(sandbox.path().join(".moon/cache/hashes")).unwrap();
+
+        fs::write(
+            sandbox.path().join(".moon/cache/hashes/a.json"),
+            r#"{
+    "command": "base",
+    "args": [
+        "a",
+        "b",
+        "c"
+    ]
+}"#,
+        )
+        .unwrap();
+
+        fs::write(
+            sandbox.path().join(".moon/cache/hashes/b.json"),
+            r#"{
+    "command": "other",
+    "args": [
+        "a",
+        "123",
+        "c"
+    ]
+}"#,
+        )
+        .unwrap();
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("hash-diff").arg("a").arg("b");
+        });
+
+        assert_snapshot!(assert.output());
+    }
+
+    #[test]
+    fn prints_a_diff_in_json() {
+        let sandbox = create_sandbox_with_config("base", None, None, None);
+
+        fs::create_dir_all(sandbox.path().join(".moon/cache/hashes")).unwrap();
+
+        fs::write(
+            sandbox.path().join(".moon/cache/hashes/a.json"),
+            r#"{
+    "command": "base",
+    "args": [
+        "a",
+        "b",
+        "c"
+    ]
+}"#,
+        )
+        .unwrap();
+
+        fs::write(
+            sandbox.path().join(".moon/cache/hashes/b.json"),
+            r#"{
+    "command": "other",
+    "args": [
+        "a",
+        "123",
+        "c"
+    ]
+}"#,
+        )
+        .unwrap();
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("hash-diff")
+                .arg("a")
+                .arg("b")
+                .arg("--json");
+        });
+
+        assert_snapshot!(assert.output());
+    }
+}
+
+mod projects {
     use super::*;
 
     #[test]
     fn returns_all_by_default() {
-        let fixture = create_sandbox("projects");
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-        let assert = create_moon_command(fixture.path())
-            .arg("query")
-            .arg("projects")
-            .assert();
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
 
-        let json: QueryProjectsResult = serde_json::from_str(&get_assert_output(&assert)).unwrap();
-        let ids: Vec<String> = json.projects.iter().map(|p| p.id.clone()).collect();
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("projects");
+        });
+
+        assert_snapshot!(assert.output_standardized());
+    }
+
+    #[test]
+    fn returns_all_by_default_json() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("projects").arg("--json");
+        });
+
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let mut ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+        ids.sort();
 
         assert_eq!(
             ids,
             string_vec![
                 "advanced",
                 "bar",
-                "bash",
                 "basic",
                 "baz",
                 "emptyConfig",
                 "foo",
-                "js",
+                "metadata",
                 "noConfig",
+                "platforms",
                 "tasks",
-                "ts"
             ]
         );
     }
 
     #[test]
     fn can_filter_by_affected() {
-        let fixture = create_sandbox_with_git("projects");
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-        touch_file(fixture.path());
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+        sandbox.enable_git();
 
-        let assert = create_moon_command(fixture.path())
-            .arg("query")
-            .arg("projects")
-            .arg("--affected")
-            .assert();
+        touch_file(&sandbox);
 
-        let json: QueryProjectsResult = serde_json::from_str(&get_assert_output(&assert)).unwrap();
-        let ids: Vec<String> = json.projects.iter().map(|p| p.id.clone()).collect();
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .arg("--affected");
+        });
 
-        assert_eq!(ids, string_vec!["advanced"]);
-        assert!(json.options.affected);
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+        assert_eq!(ids, string_vec!["advanced", "metadata", "noConfig"]);
+        assert!(json.options.affected.is_some());
     }
 
     #[test]
     fn can_filter_by_affected_via_stdin() {
-        let fixture = create_sandbox_with_git("projects");
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-        touch_file(fixture.path());
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+        sandbox.enable_git();
 
-        let mut query = create_moon_command(fixture.path());
-        query.arg("query").arg("touched-files");
+        touch_file(&sandbox);
 
-        if !is_ci() {
-            query.arg("--local");
-        }
+        let query = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("touched-files");
 
-        let query = query.assert();
+            if !is_ci() {
+                cmd.arg("--local");
+            }
+        });
 
-        let assert = create_moon_command(fixture.path())
-            .arg("query")
-            .arg("projects")
-            .arg("--affected")
-            .write_stdin(get_assert_stdout_output(&query))
-            .assert();
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--affected")
+                .write_stdin(get_assert_stdout_output(&query.inner));
+        });
 
-        let json: QueryProjectsResult = serde_json::from_str(&get_assert_output(&assert)).unwrap();
-        let ids: Vec<String> = json.projects.iter().map(|p| p.id.clone()).collect();
+        assert_eq!(
+            assert.output(),
+            "advanced | advanced | frontend | application | typescript | ...\nmetadata | metadata | infrastructure | configuration | unknown | Advanced example.\nnoConfig | no-config | unknown | unknown | unknown | ...\n\n"
+        );
+    }
 
-        assert_eq!(ids, string_vec!["advanced"]);
-        assert!(json.options.affected);
+    #[test]
+    fn can_include_dependents_for_affected() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+        sandbox.enable_git();
+
+        touch_file(&sandbox);
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .arg("--affected")
+                .arg("--dependents");
+        });
+
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+        assert_eq!(
+            ids,
+            string_vec!["advanced", "basic", "metadata", "noConfig"]
+        );
+        assert!(json.options.affected.is_some());
+    }
+
+    #[test]
+    fn can_filter_by_affected_via_stdin_json() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+        sandbox.enable_git();
+
+        touch_file(&sandbox);
+
+        let query = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("touched-files").arg("--json");
+
+            if !is_ci() {
+                cmd.arg("--local");
+            }
+        });
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .arg("--affected")
+                .write_stdin(get_assert_stdout_output(&query.inner));
+        });
+
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+        assert_eq!(ids, string_vec!["advanced", "metadata", "noConfig"]);
+        assert!(json.options.affected.is_some());
     }
 
     #[test]
     fn can_filter_by_id() {
-        let fixture = create_sandbox("projects");
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-        let assert = create_moon_command(fixture.path())
-            .arg("query")
-            .arg("projects")
-            .args(["--id", "ba(r|z)"])
-            .assert();
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
 
-        let json: QueryProjectsResult = serde_json::from_str(&get_assert_output(&assert)).unwrap();
-        let ids: Vec<String> = json.projects.iter().map(|p| p.id.clone()).collect();
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .args(["--id", "ba(r|z)"]);
+        });
+
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
 
         assert_eq!(ids, string_vec!["bar", "baz"]);
         assert_eq!(json.options.id.unwrap(), "ba(r|z)".to_string());
@@ -134,33 +449,88 @@ mod projects {
 
     #[test]
     fn can_filter_by_source() {
-        let fixture = create_sandbox("projects");
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-        let assert = create_moon_command(fixture.path())
-            .arg("query")
-            .arg("projects")
-            .args(["--source", "config$"])
-            .assert();
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
 
-        let json: QueryProjectsResult = serde_json::from_str(&get_assert_output(&assert)).unwrap();
-        let ids: Vec<String> = json.projects.iter().map(|p| p.id.clone()).collect();
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .args(["--source", "config$"]);
+        });
+
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
 
         assert_eq!(ids, string_vec!["emptyConfig", "noConfig"]);
         assert_eq!(json.options.source.unwrap(), "config$".to_string());
     }
 
     #[test]
+    fn can_filter_by_tags() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .args(["--tags", "react"]);
+        });
+
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+        assert_eq!(ids, string_vec!["advanced", "foo"]);
+        assert_eq!(json.options.tags.unwrap(), "react".to_string());
+
+        // Multiple
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .args(["--tags", "react|vue"]);
+        });
+
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+        assert_eq!(ids, string_vec!["advanced", "basic", "foo"]);
+        assert_eq!(json.options.tags.unwrap(), "react|vue".to_string());
+    }
+
+    #[test]
     fn can_filter_by_tasks() {
-        let fixture = create_sandbox("projects");
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-        let assert = create_moon_command(fixture.path())
-            .arg("query")
-            .arg("projects")
-            .args(["--tasks", "lint"])
-            .assert();
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
 
-        let json: QueryProjectsResult = serde_json::from_str(&get_assert_output(&assert)).unwrap();
-        let ids: Vec<String> = json.projects.iter().map(|p| p.id.clone()).collect();
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .args(["--tasks", "lint"]);
+        });
+
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
 
         assert_eq!(ids, string_vec!["tasks"]);
         assert_eq!(json.options.tasks.unwrap(), "lint".to_string());
@@ -168,63 +538,518 @@ mod projects {
 
     #[test]
     fn can_filter_by_language() {
-        let fixture = create_sandbox("projects");
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-        let assert = create_moon_command(fixture.path())
-            .arg("query")
-            .arg("projects")
-            .args(["--language", "java|bash"])
-            .assert();
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
 
-        let json: QueryProjectsResult = serde_json::from_str(&get_assert_output(&assert)).unwrap();
-        let ids: Vec<String> = json.projects.iter().map(|p| p.id.clone()).collect();
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .args(["--language", "java|bash"]);
+        });
 
-        assert_eq!(ids, string_vec!["bash", "basic", "foo", "js"]);
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+        assert_eq!(ids, string_vec!["basic", "foo"]);
         assert_eq!(json.options.language.unwrap(), "java|bash".to_string());
     }
 
     #[test]
     fn can_filter_by_type() {
-        let fixture = create_sandbox("projects");
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
 
-        let assert = create_moon_command(fixture.path())
-            .arg("query")
-            .arg("projects")
-            .args(["--type", "app"])
-            .assert();
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
 
-        let json: QueryProjectsResult = serde_json::from_str(&get_assert_output(&assert)).unwrap();
-        let ids: Vec<String> = json.projects.iter().map(|p| p.id.clone()).collect();
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .args(["--type", "app"]);
+        });
 
-        assert_eq!(ids, string_vec!["advanced", "foo", "ts"]);
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+        assert_eq!(ids, string_vec!["advanced", "foo"]);
         assert_eq!(json.options.type_of.unwrap(), "app".to_string());
+    }
+
+    #[test]
+    fn can_filter_by_stack() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("projects")
+                .arg("--json")
+                .args(["--stack", "frontend"]);
+        });
+
+        let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+        let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+        assert_eq!(ids, string_vec!["advanced"]);
+        assert_eq!(json.options.stack.unwrap(), "frontend".to_string());
+    }
+
+    mod mql {
+        use super::*;
+
+        #[test]
+        fn can_filter_with_query() {
+            let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+            let sandbox = create_sandbox_with_config(
+                "projects",
+                Some(workspace_config),
+                Some(toolchain_config),
+                Some(tasks_config),
+            );
+
+            let assert = sandbox.run_moon(|cmd| {
+                cmd.arg("query")
+                    .arg("projects")
+                    .arg("project~ba{r,z}")
+                    .arg("--json");
+            });
+
+            let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+            let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+            assert_eq!(ids, string_vec!["bar", "baz"]);
+            assert_eq!(json.options.query.unwrap(), "project~ba{r,z}".to_string());
+        }
+
+        #[test]
+        fn can_filter_by_affected_with_query() {
+            let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+            let sandbox = create_sandbox_with_config(
+                "projects",
+                Some(workspace_config),
+                Some(toolchain_config),
+                Some(tasks_config),
+            );
+            sandbox.enable_git();
+
+            touch_file(&sandbox);
+
+            let assert = sandbox.run_moon(|cmd| {
+                cmd.arg("query")
+                    .arg("projects")
+                    .arg("project~*Config")
+                    .arg("--json")
+                    .arg("--affected");
+            });
+
+            let json: QueryProjectsResult = json::parse(assert.output()).unwrap();
+            let ids: Vec<String> = json.projects.iter().map(|p| p.id.to_string()).collect();
+
+            assert_eq!(ids, string_vec!["noConfig"]);
+            assert!(json.options.affected.is_some());
+        }
+    }
+}
+
+mod tasks {
+    use super::*;
+
+    fn extract_targets(result: &QueryTasksResult) -> Vec<String> {
+        result.tasks.iter().fold(vec![], |mut acc, (_, tasks)| {
+            acc.extend(tasks.values().map(|t| t.target.to_string()));
+            acc
+        })
+    }
+
+    #[test]
+    fn returns_all_by_default() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("tasks");
+        });
+
+        assert_snapshot!(assert.output_standardized());
+    }
+
+    #[test]
+    fn returns_all_by_default_json() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("tasks").arg("--json");
+        });
+
+        let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+        let tasks = json
+            .tasks
+            .get("tasks")
+            .unwrap()
+            .keys()
+            .map(|k| k.to_owned())
+            .collect::<Vec<_>>();
+        let mut projects = json.tasks.into_keys().collect::<Vec<_>>();
+
+        projects.sort();
+
+        assert_eq!(tasks, string_vec!["lint", "test"]);
+        assert_eq!(projects, string_vec!["metadata", "platforms", "tasks"]);
+    }
+
+    #[test]
+    fn can_filter_by_affected() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+        sandbox.enable_git();
+
+        touch_file(&sandbox);
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("tasks")
+                .arg("--json")
+                .arg("--affected");
+        });
+
+        let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+        let targets = extract_targets(&json);
+
+        assert_eq!(targets, string_vec!["metadata:build", "metadata:test"]);
+        assert!(json.options.affected.is_some());
+    }
+
+    #[test]
+    fn can_filter_by_affected_via_stdin() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+        sandbox.enable_git();
+
+        touch_file(&sandbox);
+
+        let query = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("touched-files");
+
+            if !is_ci() {
+                cmd.arg("--local");
+            }
+        });
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("tasks")
+                .arg("--json")
+                .arg("--affected")
+                .write_stdin(get_assert_stdout_output(&query.inner));
+        });
+
+        let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+        let targets = extract_targets(&json);
+
+        assert_eq!(targets, string_vec!["metadata:build", "metadata:test"]);
+        assert!(json.options.affected.is_some());
+    }
+
+    #[test]
+    fn can_filter_by_id() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("tasks")
+                .arg("--json")
+                .args(["--id", "te(st|m)"]);
+        });
+
+        let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+        let targets = extract_targets(&json);
+
+        assert_eq!(
+            targets,
+            string_vec!["metadata:test", "platforms:system", "tasks:test"]
+        );
+        assert_eq!(json.options.id.unwrap(), "te(st|m)".to_string());
+    }
+
+    #[test]
+    fn can_filter_by_command() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("tasks")
+                .arg("--json")
+                .args(["--command", "noop"]);
+        });
+
+        let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+        let targets = extract_targets(&json);
+
+        assert_eq!(
+            targets,
+            string_vec!["metadata:build", "metadata:test", "platforms:system"]
+        );
+        assert_eq!(json.options.command.unwrap(), "noop".to_string());
+    }
+
+    #[test]
+    fn can_filter_by_toolchain() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("tasks")
+                .arg("--json")
+                .args(["--toolchain", "node"]);
+        });
+
+        let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+        let targets = extract_targets(&json);
+
+        assert_eq!(
+            targets,
+            string_vec!["platforms:node", "tasks:lint", "tasks:test"]
+        );
+        assert_eq!(json.options.toolchain.unwrap(), "node".to_string());
+    }
+
+    #[test]
+    fn can_filter_by_project() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("tasks")
+                .arg("--json")
+                .args(["--project", "a(d|t)"]);
+        });
+
+        let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+        let targets = extract_targets(&json);
+
+        assert_eq!(
+            targets,
+            string_vec![
+                "metadata:build",
+                "metadata:test",
+                "platforms:node",
+                "platforms:system"
+            ]
+        );
+        assert_eq!(json.options.project.unwrap(), "a(d|t)".to_string());
+    }
+
+    #[test]
+    fn can_filter_by_type() {
+        let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "projects",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query")
+                .arg("tasks")
+                .arg("--json")
+                .args(["--type", "build"]);
+        });
+
+        let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+        let targets = extract_targets(&json);
+
+        assert_eq!(targets, string_vec!["tasks:lint"]);
+        assert_eq!(json.options.type_of.unwrap(), "build".to_string());
+    }
+
+    mod mql {
+        use super::*;
+
+        #[test]
+        fn can_filter_with_query() {
+            let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+            let sandbox = create_sandbox_with_config(
+                "projects",
+                Some(workspace_config),
+                Some(toolchain_config),
+                Some(tasks_config),
+            );
+
+            let assert = sandbox.run_moon(|cmd| {
+                cmd.arg("query").arg("tasks").arg("task=test").arg("--json");
+            });
+
+            let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+            let targets = extract_targets(&json);
+
+            assert_eq!(targets, string_vec!["metadata:test", "tasks:test"]);
+            assert_eq!(json.options.query.unwrap(), "task=test".to_string());
+        }
+
+        #[test]
+        fn can_filter_by_affected_with_query() {
+            let (workspace_config, toolchain_config, tasks_config) = get_projects_fixture_configs();
+
+            let sandbox = create_sandbox_with_config(
+                "projects",
+                Some(workspace_config),
+                Some(toolchain_config),
+                Some(tasks_config),
+            );
+            sandbox.enable_git();
+
+            touch_file(&sandbox);
+
+            let assert = sandbox.run_moon(|cmd| {
+                cmd.arg("query")
+                    .arg("tasks")
+                    .arg("task=test")
+                    .arg("--json")
+                    .arg("--affected");
+            });
+
+            let json: QueryTasksResult = json::parse(assert.output()).unwrap();
+            let targets = extract_targets(&json);
+
+            assert_eq!(targets, string_vec!["metadata:test"]);
+            assert_eq!(json.options.query.unwrap(), "task=test".to_string());
+        }
     }
 }
 
 mod touched_files {
     use super::*;
-    use moon_utils::test::create_sandbox_with_git;
 
     #[test]
     fn can_change_options() {
-        let fixture = create_sandbox_with_git("cases");
+        let (workspace_config, toolchain_config, tasks_config) = get_cases_fixture_configs();
 
-        change_branch(fixture.path());
+        let sandbox = create_sandbox_with_config(
+            "cases",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+        sandbox.enable_git();
 
-        let assert = create_moon_command(fixture.path())
-            .arg("query")
-            .arg("touched-files")
-            .args([
-                "--base", "master", "--head", "branch", "--status", "deleted",
-            ])
-            .assert();
+        change_branch(&sandbox);
 
-        let json: QueryTouchedFilesResult =
-            serde_json::from_str(&get_assert_output(&assert)).unwrap();
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("touched-files").args([
+                "--base", "master", "--head", "branch", "--status", "deleted", "--json",
+            ]);
+        });
 
-        assert_eq!(json.options.base, "master".to_string());
-        assert_eq!(json.options.head, "branch".to_string());
-        assert_eq!(json.options.status, TouchedStatus::Deleted);
+        let json: QueryTouchedFilesResult = json::parse(assert.output()).unwrap();
+
+        assert_eq!(json.options.base.unwrap(), "master".to_string());
+        assert_eq!(json.options.head.unwrap(), "branch".to_string());
+        assert_eq!(json.options.status, vec![TouchedStatus::Deleted]);
         assert!(!json.options.local);
+    }
+
+    #[test]
+    fn can_supply_multi_status() {
+        let (workspace_config, toolchain_config, tasks_config) = get_cases_fixture_configs();
+
+        let sandbox = create_sandbox_with_config(
+            "cases",
+            Some(workspace_config),
+            Some(toolchain_config),
+            Some(tasks_config),
+        );
+        sandbox.enable_git();
+
+        let assert = sandbox.run_moon(|cmd| {
+            cmd.arg("query").arg("touched-files").args([
+                "--status", "deleted", "--status", "added", "--status", "modified", "--json",
+            ]);
+        });
+
+        let json: QueryTouchedFilesResult = json::parse(assert.output()).unwrap();
+
+        assert_eq!(
+            json.options.status,
+            vec![
+                TouchedStatus::Deleted,
+                TouchedStatus::Added,
+                TouchedStatus::Modified
+            ]
+        );
     }
 }

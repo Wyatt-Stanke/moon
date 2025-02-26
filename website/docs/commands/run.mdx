@@ -2,41 +2,86 @@
 title: run
 ---
 
-The `moon run` (or `moon r`) command will run one or many [targets](../concepts/target) (a task
-within a project) and all of its dependencies in topological order. Each run will incrementally
-cache each task, improving speed and development times... over time.
+import VersionLabel from '@site/src/components/Docs/VersionLabel';
+
+The `moon run` (or `moon r`) command will run one or many [targets](../concepts/target) and all of
+its dependencies in topological order. Each run will incrementally cache each task, improving speed
+and development times... over time. View the official [Run a task](../run-task) and
+[Cheat sheet](../cheat-sheet#tasks) articles for more information!
 
 ```shell
 # Run `lint` in project `app`
 $ moon run app:lint
+$ moon app:lint
 
-# Run `lint` in project `app` and `server`
-$ moon run app:lint server:lint
+# Run `dev` in project `client` and `server`
+$ moon run client:dev server:dev
 
-# Run `lint` in all projects
-$ moon run :lint
+# Run `test` in all projects
+$ moon run :test
+
+# Run `test` in all projects with tag `frontend`
+$ moon run '#frontend:test'
+
+# Run `format` in closest project (`client`)
+$ cd apps/client
+$ moon run format
+
+# Run `build` in projects matching the query
+$ moon run :build --query "language=javascript && projectType=library"
 ```
 
-> View the official [Run a task](../run-task) article for more information!
+:::info
+
+How affected status is determined is highly dependent on whether the command is running locally, in
+CI, and what options are provided. The following scenarios are possible:
+
+- When `--affected` is provided, will explicitly use `--remote` to determine CI or local.
+- When not provided, will use `git diff` in CI, or `git status` for local.
+- To bypass affected logic entirely, use `--force`.
+
+:::
+
+:::info
+
+The default behavior for `moon run` is to "fail fast", meaning that any failed task will immediately
+abort execution of the entire action graph. Pass `--no-bail` to execute as many tasks as safely
+possible (tasks with upstream failures will be skipped to avoid side effects). This is the default
+behavior for `moon ci`, and is also useful for pre-commit hooks.
+
+:::
 
 ### Arguments
 
-- `...<target>` - [Targets](../concepts/target) to run.
+- `...<target>` - [Targets](../concepts/target) or project relative tasks to run.
 - `[-- <args>]` - Additional arguments to
   [pass to the underlying command](../run-task#passing-arguments-to-the-underlying-command).
 
 ### Options
 
+- `-f`, `--force` - Force run and ignore touched files and affected status. Will not query VCS.
 - `--dependents` - Run downstream dependent targets (of the same task name) as well.
+- `-i`, `--interactive` - Run the target in an interactive mode.
 - `--profile <type>` - Record and [generate a profile](../guides/profile) for ran tasks.
   - Types: `cpu`, `heap`
-- `--report` - Generate a report of the ran actions. Report is written to
-  `.moon/cache/runReport.json`.
+- `--query` - Filter projects to run targets against using
+  [a query statement](../concepts/query-lang). <VersionLabel version="1.3.0" />
+- `--summary` - Display a summary and stats of the current run. <VersionLabel version="1.25.0" />
+- `-u`, `--updateCache` - Bypass cache and force update any existing items.
+- `-n`, `--no-bail` - When a task fails, continue executing other tasks instead of aborting
+  immediately
 
 #### Affected
 
 - `--affected` - Only run target if affected by changed files, _otherwise_ will always run.
-- `--status <type>` - Filter affected based on a change status.
-  - Types: `all` (default), `added`, `deleted`, `modified`, `staged`, `unstaged`, `untracked`
-- `--upstream` - Determine affected against upstream by comparing `HEAD` against a base revision
+- `--remote` - Determine affected against remote by comparing `HEAD` against a base revision
   (default branch), _otherwise_ uses local changes.
+  - Can control revisions with `MOON_BASE` and `MOON_HEAD`.
+- `--status <type>` - Filter affected based on a change status. Can be passed multiple times.
+  - Types: `all` (default), `added`, `deleted`, `modified`, `staged`, `unstaged`, `untracked`
+
+### Configuration
+
+- [`projects`](../config/workspace#projects) in `.moon/workspace.yml`
+- [`tasks`](../config/tasks#tasks) in `.moon/tasks.yml`
+- [`tasks`](../config/project#tasks) in `moon.yml`

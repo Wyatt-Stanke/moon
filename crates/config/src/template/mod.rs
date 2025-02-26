@@ -1,5 +1,5 @@
-mod config;
 mod frontmatter;
+mod template_locator;
 
-pub use config::*;
 pub use frontmatter::*;
+pub use template_locator::*;

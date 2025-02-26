@@ -1,14 +1,10 @@
 ---
 slug: v0.16
-title: v0.16 - Per-project tool versions and TypeScript impovements
+title: moon v0.16 - Per-project tool versions and TypeScript improvements
 authors: [milesj]
 tags: [toolchain, runner, generator, typescript, node]
 image: ./img/v0.16.png
 ---
-
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-import Image from '@site/src/components/Image';
 
 With this release, we've landed a long standing request of supporting project-level overrides for
 tools configured in the workspace, as well as some quality of life improvements for TypeScript.
@@ -30,14 +26,14 @@ basis. Since we only support Node.js at the moment, this can be achieved with th
 
 For example, if your workspace Node.js version is configured as v18.
 
-```yml title=".moon/workspace.yml"
+```yaml title=".moon/workspace.yml"
 node:
   version: '18.0.0'
 ```
 
 You can now override this version at the project-level. Let's go with v14.
 
-```yml title="<project>/moon.yml"
+```yaml title="<project>/moon.yml"
 workspace:
   node:
     version: '14.0.0'
@@ -65,12 +61,12 @@ dependencies will be installed within the project.
 ### Routing `outDir` to the cache
 
 A requirement for using project references is that each project must compile declarations (`.d.ts`)
-so that consumers/dependees can resolve type information. While this makes sense, it becomes rather
+so that consumers/dependents can resolve type information. While this makes sense, it becomes rather
 unfortunate as each project folder is now littered with the declaration outputs, which are typically
 gitignored.
 
 To improve this experience, we're introducing a new setting
-[`typescript.routeOutDirToCache`](../docs/config/workspace#routeoutdirtocache), that will update the
+[`typescript.routeOutDirToCache`](../docs/config/toolchain#routeoutdirtocache), that will update the
 `outDir` compiler option of _all_ projects to route to moon's cache directory (which should already
 be gitignored). This will standardize the use of project references for the entire repository.
 
@@ -93,9 +89,9 @@ For example, a project at "packages/components" will route to the following outp
 ### Mapping project references as `paths`
 
 moon automatically keeps TypeScript project references in sync with the
-[`typescript.syncProjectReferences`](../docs/config/workspace#syncprojectreferences) setting, which
+[`typescript.syncProjectReferences`](../docs/config/toolchain#syncprojectreferences) setting, which
 is great, but we can take it further. With the new
-[`typescript.syncProjectReferencesToPaths`](../docs/config/workspace#syncprojectreferencestopaths)
+[`typescript.syncProjectReferencesToPaths`](../docs/config/toolchain#syncprojectreferencestopaths)
 setting, project references (either synced or explicitly defined) will _also_ be mapped to the
 `paths` compiler option, automating the list of import aliases.
 
@@ -129,8 +125,8 @@ full list of changes.
 - Template files can now be suffixed with `.tera` or `.twig` for
   [syntax highlighting](../docs/guides/codegen#file-extensions).
 - We now display more commands and information when running tasks.
-- Declare implicit task dependencies with a new
-  [`runner.implicitDeps`](../docs/config/workspace#implicitdeps) setting.
+- Declare implicit task dependencies with a new [`runner.implicitDeps`](../docs/config/workspace)
+  setting.
 
 ## What's next?
 
