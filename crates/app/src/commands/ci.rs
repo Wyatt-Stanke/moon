@@ -1,6 +1,6 @@
 use crate::app_error::AppError;
 use crate::components::run_action_pipeline;
-use crate::queries::touched_files::{QueryTouchedFilesOptions, query_touched_files_with_stdin};
+use crate::queries::touched_files::{QueryTouchedFilesOptions, query_touched_files};
 use crate::session::MoonSession;
 use ci_env::CiOutput;
 use clap::Args;
@@ -110,7 +110,7 @@ async fn gather_touched_files(
     }
 
     let vcs = session.get_vcs_adapter()?;
-    let result = query_touched_files_with_stdin(
+    let result = query_touched_files(
         &vcs,
         &QueryTouchedFilesOptions {
             default_branch: true,
@@ -217,6 +217,7 @@ async fn generate_action_graph(
         ci_check: true,
         dependents: true,
         interactive: false,
+        skip_affected: false,
     };
 
     for locator in targets {

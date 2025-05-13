@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.35.7
+
+#### 🐞 Fixes
+
+- Reverted `moon ci` and `moon run` accepting touched files via stdin, as it's causing issues in CI
+  environments. Will revisit for the next release.
+
+## 1.35.6
+
+#### 🚀 Updates
+
+- Updated `moon run` to support passing touched files via stdin.
+- Updated commands that wait for stdin to continue after 10 seconds if nothing was received.
+
+#### 🐞 Fixes
+
+- Fixed an issue where Git v2 would error loading submodules that haven't been checked out yet.
+- Fixed an issue with remote cache hydration that would leave around stale artifacts.
+- Fixed an issue where parallel persistent tasks wouldn't prefix output.
+
+## 1.35.5
+
+#### 🐞 Fixes
+
+- Potential fix for affected dependencies in the action pipeline not running and failing with a
+  "missing hash" error.
+- Potential fix for "Bun" and "Node with Bun as a package manager" both installing dependencies in
+  parallel and colliding.
+- Fixed an issue where downloading an invalid remote cache would not abort the hydrate process.
+
+## 1.35.4
+
+#### 🚀 Updates
+
+- Updated remote caching to error if an output file is a symlink to a file outside of the workspace.
+
+#### 🐞 Fixes
+
+- Fixed an issue with priority tasks where dependencies of the task may sometimes not run in the
+  correct order in the pipeline.
+- Fixed an issue where task `affectedFiles` and `runFromWorkspaceRoot` would pass invalid relative
+  file paths.
+- Fixed an issue where running tasks for custom plugins would trigger a panic.
+
 ## 1.35.3
 
 #### 🚀 Updates
