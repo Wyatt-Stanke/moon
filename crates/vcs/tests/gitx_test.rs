@@ -176,12 +176,12 @@ mod gitx {
             assert_eq!(git.get_local_branch().await.unwrap().as_str(), "master");
             assert_eq!(
                 git.get_local_branch_revision().await.unwrap().as_str(),
-                "d12c8a437ff760f9d1e323ff77ebc593e87ff30d"
+                "89df0bd49ccdf58d166ba27944baaa42b494516e"
             );
             assert_eq!(git.get_default_branch().await.unwrap().as_str(), "master");
             assert_eq!(
                 git.get_default_branch_revision().await.unwrap().as_str(),
-                "d12c8a437ff760f9d1e323ff77ebc593e87ff30d"
+                "89df0bd49ccdf58d166ba27944baaa42b494516e"
             );
             assert_eq!(
                 git.get_repository_slug().await.unwrap().as_str(),
@@ -414,12 +414,12 @@ mod gitx {
             assert_eq!(git.get_local_branch().await.unwrap().as_str(), "one");
             assert_eq!(
                 git.get_local_branch_revision().await.unwrap().as_str(),
-                "d12c8a437ff760f9d1e323ff77ebc593e87ff30d"
+                "89df0bd49ccdf58d166ba27944baaa42b494516e"
             );
             assert_eq!(git.get_default_branch().await.unwrap().as_str(), "master");
             assert_eq!(
                 git.get_default_branch_revision().await.unwrap().as_str(),
-                "d12c8a437ff760f9d1e323ff77ebc593e87ff30d"
+                "89df0bd49ccdf58d166ba27944baaa42b494516e"
             );
             assert_eq!(
                 git.get_repository_slug().await.unwrap().as_str(),
@@ -542,6 +542,28 @@ mod gitx {
                     ..TouchedFiles::default()
                 }
             );
+        }
+    }
+
+    mod submodules {
+        use super::*;
+
+        #[tokio::test]
+        async fn doesnt_error_if_submodules_arent_checked_out() {
+            let sandbox = create_empty_sandbox();
+
+            sandbox.run_git(|cmd| {
+                cmd.args([
+                    "clone",
+                    "https://github.com/moonrepo/git-test.git",
+                    ".",
+                    // No recurse submodules
+                ]);
+            });
+
+            let git = Gitx::load(sandbox.path(), "master", &["origin".into()]).unwrap();
+
+            assert!(git.submodules.is_empty());
         }
     }
 

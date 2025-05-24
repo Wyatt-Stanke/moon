@@ -1,5 +1,133 @@
 # Changelog
 
+## 1.36.1
+
+#### 🐞 Fixes
+
+- Fixed an issue where tasks would not substitute environment variables when executing, because it
+  did not run in a shell.
+
+#### ⚙️ Internal
+
+- Updated dependencies.
+
+## 1.36.0
+
+#### 🚀 Updates
+
+- Added more unstable support for toolchain plugins.
+  - In the project graph:
+    - Extend projects with dependencies, tasks, and an alias.
+  - In the action pipeline:
+    - Added `SetupEnvironment` action that executes the `setup_environment` WASM API.
+    - Added `InstallDependencies` action that executes the `install_dependencies` WASM API.
+  - When running tasks:
+    - Extend the command/script with additional parameters before executing.
+    - Inject dependency and lock information into the hash.
+  - With Docker:
+    - Updated `docker prune` to utilize the new WASM APIs for toolchain plugins.
+- Added `--host` and `--port` options to `moon action-graph`, `moon task-graph`, and
+  `moon project-graph`.
+- Added `--stdin` option to `moon ci` and `moon run`, which will allow touched files to be passed
+  via stdin, instead of running VCS commands to determine them.
+  - This is a follow-up fix to the revert in a previous version. This functionality is now opt-in
+    instead of the default, to avoid problematic edge cases.
+- Updated and improved remote caching:
+  - Added an `unstable_remote.cache.verifyIntegrity` setting, that will verify the digest of
+    downloaded blobs to ensure they aren't corrupted or incomplete. Will degrade performance but
+    ensure reliability.
+  - Added a file rollback mechanic to that will be triggered when hydration fails part way and
+    written files need to be removed.
+  - Updated blob existence checks to be batched and parallelized.
+  - Can now be enabled entirely through environment variables.
+- Updated and improved code generation:
+  - Added support for `array` and `object` variable types in `template.yml`. The values must be JSON
+    compatible.
+  - Updated `generator.templates` to support `https://` URLs that point to an archive that can be
+    unpacked.
+- Removed the restriction around `moon.{yml,pkl}` not being allowed as a task input. However, will
+  not be included when using `**/*`.
+
+#### 🐞 Fixes
+
+- Fixed an issue where terminal prompt validation would not trigger.
+- Fixed an issue with remote cache hydration where multiple files with the same blob hash would fail
+  to write them all.
+- Fixed an issue where changing `args` or `env` of a task dependency would not invalidate its cache.
+- Fixed an issue where environment variables passed on the command line would not overwrite task
+  `env`.
+- Fixed tag-based task dependencies not creating implicit project dependencies.
+- Fixed some task/command argument quoting issues.
+
+#### 🧩 Plugins
+
+- Added new toolchain WASM APIs.
+  - `extend_project_graph` - Extend projects with toolchain specific info.
+  - `extend_task_command` - Extend the command child process with parameters.
+  - `extend_task_script` - Extend the script child process with parameters.
+  - `locate_dependencies_root` - Locate the package dependencies workspace root.
+  - `parse_manifest` - Parse a manifest file to extract dependencies.
+  - `parse_lock` - Parse a lock file to extract resolved dependencies.
+- WASM
+  - Added `InstallDependenciesInput.packages` and `production` fields.
+  - Added `InstallDependenciesOutput.operations` field.
+  - Added `PruneDockerInput.projects` and `root` fields.
+  - Added `PruneDockerOutput`.
+  - Added `SetupEnvironmentOutput.operations` field.
+  - Added `SetupToolchainOutput.operations` field.
+  - Added `SyncWorkspaceInput.toolchain_config` field.
+  - Added `TeardownToolchainInput.version` field.
+
+#### ⚙️ Internal
+
+- Updated Rust to v1.87.0.
+- Updated proto to [v0.49.1](https://github.com/moonrepo/proto/releases/tag/v0.49.0) (from 0.47.11).
+- Updated dependencies.
+
+## 1.35.7
+
+#### 🐞 Fixes
+
+- Reverted `moon ci` and `moon run` accepting touched files via stdin, as it's causing issues in CI
+  environments. Will revisit for the next release.
+
+## 1.35.6
+
+#### 🚀 Updates
+
+- Updated `moon run` to support passing touched files via stdin.
+- Updated commands that wait for stdin to continue after 10 seconds if nothing was received.
+
+#### 🐞 Fixes
+
+- Fixed an issue where Git v2 would error loading submodules that haven't been checked out yet.
+- Fixed an issue with remote cache hydration that would leave around stale artifacts.
+- Fixed an issue where parallel persistent tasks wouldn't prefix output.
+
+## 1.35.5
+
+#### 🐞 Fixes
+
+- Potential fix for affected dependencies in the action pipeline not running and failing with a
+  "missing hash" error.
+- Potential fix for "Bun" and "Node with Bun as a package manager" both installing dependencies in
+  parallel and colliding.
+- Fixed an issue where downloading an invalid remote cache would not abort the hydrate process.
+
+## 1.35.4
+
+#### 🚀 Updates
+
+- Updated remote caching to error if an output file is a symlink to a file outside of the workspace.
+
+#### 🐞 Fixes
+
+- Fixed an issue with priority tasks where dependencies of the task may sometimes not run in the
+  correct order in the pipeline.
+- Fixed an issue where task `affectedFiles` and `runFromWorkspaceRoot` would pass invalid relative
+  file paths.
+- Fixed an issue where running tasks for custom plugins would trigger a panic.
+
 ## 1.35.3
 
 #### 🚀 Updates

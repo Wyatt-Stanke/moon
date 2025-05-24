@@ -111,7 +111,7 @@ mod action_graph_builder {
 
             let project = wg.get_project("bar").unwrap();
             builder
-                .install_dependencies_legacy(&runtime, &project, false)
+                .install_dependencies_legacy(&runtime, &project)
                 .await
                 .unwrap();
 
@@ -145,15 +145,15 @@ mod action_graph_builder {
 
             let project = wg.get_project("bar").unwrap();
             builder
-                .install_dependencies_legacy(&runtime, &project, false)
+                .install_dependencies_legacy(&runtime, &project)
                 .await
                 .unwrap();
             builder
-                .install_dependencies_legacy(&runtime, &project, false)
+                .install_dependencies_legacy(&runtime, &project)
                 .await
                 .unwrap();
             builder
-                .install_dependencies_legacy(&runtime, &project, false)
+                .install_dependencies_legacy(&runtime, &project)
                 .await
                 .unwrap();
 
@@ -186,13 +186,13 @@ mod action_graph_builder {
 
             let inside = wg.get_project("in").unwrap();
             builder
-                .install_dependencies_legacy(&runtime, &inside, false)
+                .install_dependencies_legacy(&runtime, &inside)
                 .await
                 .unwrap();
 
             let outside = wg.get_project("out").unwrap();
             builder
-                .install_dependencies_legacy(&runtime, &outside, false)
+                .install_dependencies_legacy(&runtime, &outside)
                 .await
                 .unwrap();
 
@@ -233,14 +233,14 @@ mod action_graph_builder {
                 Id::raw("bun"),
                 create_runtime_with_version(Version::new(1, 0, 0)),
             );
-            let node = create_node_runtime();
+            let node = create_node_runtime_global();
 
             builder
-                .install_dependencies_legacy(&node, &project, true)
+                .install_dependencies_legacy(&node, &project)
                 .await
                 .unwrap();
             builder
-                .install_dependencies_legacy(&bun, &project, true)
+                .install_dependencies_legacy(&bun, &project)
                 .await
                 .unwrap();
 
@@ -268,11 +268,11 @@ mod action_graph_builder {
             let project = wg.get_project("bar").unwrap();
 
             builder
-                .install_dependencies_legacy(&bun, &project, true)
+                .install_dependencies_legacy(&bun, &project)
                 .await
                 .unwrap();
             builder
-                .install_dependencies_legacy(&node, &project, true)
+                .install_dependencies_legacy(&node, &project)
                 .await
                 .unwrap();
 
@@ -289,7 +289,7 @@ mod action_graph_builder {
                     ActionNode::install_workspace_deps(InstallWorkspaceDepsNode {
                         runtime: node,
                         root: WorkspaceRelativePathBuf::new(),
-                    })
+                    }),
                 ]
             );
         }
@@ -314,7 +314,7 @@ mod action_graph_builder {
             let project = wg.get_project("bar").unwrap();
 
             builder
-                .install_dependencies_legacy(&runtime, &project, false)
+                .install_dependencies_legacy(&runtime, &project)
                 .await
                 .unwrap();
 
@@ -344,7 +344,7 @@ mod action_graph_builder {
             let project = wg.get_project("bar").unwrap();
 
             builder
-                .install_dependencies_legacy(&runtime, &project, false)
+                .install_dependencies_legacy(&runtime, &project)
                 .await
                 .unwrap();
 
@@ -374,7 +374,7 @@ mod action_graph_builder {
             let project = wg.get_project("bar").unwrap();
 
             builder
-                .install_dependencies_legacy(&runtime, &project, false)
+                .install_dependencies_legacy(&runtime, &project)
                 .await
                 .unwrap();
 
@@ -440,6 +440,7 @@ mod action_graph_builder {
                 vec![
                     ActionNode::sync_workspace(),
                     ActionNode::install_dependencies(InstallDependenciesNode {
+                        members: None,
                         project_id: None,
                         root: WorkspaceRelativePathBuf::new(),
                         toolchain_id: spec.id,
@@ -470,6 +471,7 @@ mod action_graph_builder {
                     ActionNode::sync_workspace(),
                     ActionNode::setup_toolchain(SetupToolchainNode { spec: spec.clone() }),
                     ActionNode::install_dependencies(InstallDependenciesNode {
+                        members: None,
                         project_id: None,
                         root: WorkspaceRelativePathBuf::new(),
                         toolchain_id: spec.id,
@@ -504,6 +506,7 @@ mod action_graph_builder {
                         toolchain_id: spec.id.clone(),
                     }),
                     ActionNode::install_dependencies(InstallDependenciesNode {
+                        members: None,
                         project_id: None,
                         root: WorkspaceRelativePathBuf::new(),
                         toolchain_id: spec.id,
@@ -595,6 +598,7 @@ mod action_graph_builder {
                 vec![
                     ActionNode::sync_workspace(),
                     ActionNode::install_dependencies(InstallDependenciesNode {
+                        members: None,
                         project_id: None,
                         root: WorkspaceRelativePathBuf::new(),
                         toolchain_id: spec.id,
@@ -625,6 +629,7 @@ mod action_graph_builder {
                 vec![
                     ActionNode::sync_workspace(),
                     ActionNode::install_dependencies(InstallDependenciesNode {
+                        members: None,
                         project_id: Some(Id::raw("isolated")),
                         root: WorkspaceRelativePathBuf::from("isolated"),
                         toolchain_id: spec.id,
@@ -655,6 +660,7 @@ mod action_graph_builder {
                 vec![
                     ActionNode::sync_workspace(),
                     ActionNode::install_dependencies(InstallDependenciesNode {
+                        members: None,
                         project_id: Some(Id::raw("out")),
                         root: WorkspaceRelativePathBuf::from("out"),
                         toolchain_id: spec.id,
@@ -685,6 +691,7 @@ mod action_graph_builder {
                 vec![
                     ActionNode::sync_workspace(),
                     ActionNode::install_dependencies(InstallDependenciesNode {
+                        members: Some(vec!["in".into()]),
                         project_id: None,
                         root: WorkspaceRelativePathBuf::new(),
                         toolchain_id: spec.id,
@@ -715,6 +722,7 @@ mod action_graph_builder {
                 vec![
                     ActionNode::sync_workspace(),
                     ActionNode::install_dependencies(InstallDependenciesNode {
+                        members: Some(vec!["in".into()]),
                         project_id: None,
                         root: WorkspaceRelativePathBuf::new(),
                         toolchain_id: spec.id,

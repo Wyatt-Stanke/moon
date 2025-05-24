@@ -56,11 +56,15 @@ macro_rules! json_config {
 
         impl $container {
             pub fn load(path: moon_pdk_api::VirtualPath) -> AnyResult<Self> {
-                Ok(Self {
-                    data: starbase_utils::json::read_file(path.any_path())?,
-                    dirty: vec![],
-                    path,
-                })
+                if path.exists() {
+                    Ok(Self {
+                        data: starbase_utils::json::read_file(path.any_path())?,
+                        dirty: vec![],
+                        path,
+                    })
+                } else {
+                    Ok(Self::new(path))
+                }
             }
 
             pub fn save(self) -> AnyResult<Option<moon_pdk_api::VirtualPath>> {
@@ -73,23 +77,14 @@ macro_rules! json_config {
                 let mut data: json::JsonValue = json::read_file(self.path.any_path())?;
 
                 for field in &self.dirty {
-                    match self.save_field(field, data.get(field))? {
-                        Some(value) => {
-                            data[field] = value;
-                        }
-                        None => {
-                            if let Some(root) = data.as_object_mut() {
-                                root.remove(field);
-                            }
-                        }
-                    };
+                    self.save_field(field, &mut data)?;
                 }
 
                 #[cfg(feature = "wasm")]
                 {
                     host_log!(
                         "Saving <path>{}</path> with changed fields {}",
-                        self.path.display(),
+                        self.path,
                         self.dirty
                             .into_iter()
                             .map(|dirty| format!("<property>{dirty}</property>"))
@@ -98,7 +93,7 @@ macro_rules! json_config {
                     );
                 }
 
-                json::write_file_with_config(self.path.any_path(), &data, true)?;
+                json::write_file_with_config(&self.path, &data, true)?;
 
                 Ok(Some(self.path))
             }
@@ -108,10 +103,10 @@ macro_rules! json_config {
 
                 #[cfg(feature = "wasm")]
                 {
-                    host_log!("Saving <path>{}</path>", self.path.display());
+                    host_log!("Saving <path>{}</path>", self.path);
                 }
 
-                json::write_file_with_config(self.path.any_path(), &self.data, true)?;
+                json::write_file_with_config(&self.path, &self.data, true)?;
 
                 Ok(self.path)
             }
@@ -126,11 +121,15 @@ macro_rules! toml_config {
 
         impl $container {
             pub fn load(path: moon_pdk_api::VirtualPath) -> AnyResult<Self> {
-                Ok(Self {
-                    data: starbase_utils::toml::read_file(path.any_path())?,
-                    dirty: vec![],
-                    path,
-                })
+                if path.exists() {
+                    Ok(Self {
+                        data: starbase_utils::toml::read_file(path.any_path())?,
+                        dirty: vec![],
+                        path,
+                    })
+                } else {
+                    Ok(Self::new(path))
+                }
             }
 
             pub fn save(self) -> AnyResult<Option<moon_pdk_api::VirtualPath>> {
@@ -143,23 +142,14 @@ macro_rules! toml_config {
                 let mut data: toml::TomlValue = toml::read_file(self.path.any_path())?;
 
                 for field in &self.dirty {
-                    match self.save_field(field, data.get(field))? {
-                        Some(value) => {
-                            data[field] = value;
-                        }
-                        None => {
-                            if let Some(root) = data.as_table_mut() {
-                                root.remove(field);
-                            }
-                        }
-                    };
+                    self.save_field(field, &mut data)?;
                 }
 
                 #[cfg(feature = "wasm")]
                 {
                     host_log!(
                         "Saving <path>{}</path> with changed fields {}",
-                        self.path.display(),
+                        self.path,
                         self.dirty
                             .into_iter()
                             .map(|dirty| format!("<property>{dirty}</property>"))
@@ -168,7 +158,7 @@ macro_rules! toml_config {
                     );
                 }
 
-                toml::write_file(self.path.any_path(), &data, true)?;
+                toml::write_file(&self.path, &data, true)?;
 
                 Ok(Some(self.path))
             }
@@ -178,10 +168,10 @@ macro_rules! toml_config {
 
                 #[cfg(feature = "wasm")]
                 {
-                    host_log!("Saving <path>{}</path>", self.path.display());
+                    host_log!("Saving <path>{}</path>", self.path);
                 }
 
-                toml::write_file(self.path.any_path(), &self.data, true)?;
+                toml::write_file(&self.path, &self.data, true)?;
 
                 Ok(self.path)
             }

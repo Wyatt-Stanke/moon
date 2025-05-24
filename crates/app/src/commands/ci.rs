@@ -37,6 +37,9 @@ pub struct CiArgs {
 
     #[arg(long = "jobTotal", help = "Total amount of jobs to run", help_heading = HEADING_PARALLELISM)]
     job_total: Option<usize>,
+
+    #[arg(long, help = "Accept touched files from stdin for affected checks")]
+    stdin: bool,
 }
 
 struct CiConsole {
@@ -116,6 +119,7 @@ async fn gather_touched_files(
             default_branch: true,
             base,
             head,
+            stdin: args.stdin,
             ..QueryTouchedFilesOptions::default()
         },
     )
@@ -217,6 +221,7 @@ async fn generate_action_graph(
         ci_check: true,
         dependents: true,
         interactive: false,
+        skip_affected: false,
     };
 
     for locator in targets {

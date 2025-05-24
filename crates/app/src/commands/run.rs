@@ -1,5 +1,5 @@
 use crate::components::run_action_pipeline;
-use crate::queries::touched_files::{QueryTouchedFilesOptions, query_touched_files};
+use crate::queries::touched_files::{QueryTouchedFilesOptions, query_touched_files_with_stdin};
 use crate::session::MoonSession;
 use clap::Args;
 use iocraft::prelude::element;
@@ -42,6 +42,7 @@ pub struct RunArgs {
     #[arg(
         long,
         short = 's',
+        env = "MOON_SUMMARY",
         help = "Include a summary of all actions that were processed in the pipeline"
     )]
     pub summary: bool,
@@ -55,6 +56,7 @@ pub struct RunArgs {
 
     #[arg(
         long,
+        env = "MOON_NO_ACTIONS",
         help = "Run the task without including sync and setup related actions in the graph"
     )]
     pub no_actions: bool,
@@ -62,6 +64,7 @@ pub struct RunArgs {
     #[arg(
         long,
         short = 'n',
+        env = "MOON_NO_BAIL",
         help = "When a task fails, continue executing other tasks instead of aborting immediately"
     )]
     pub no_bail: bool,
@@ -78,6 +81,7 @@ pub struct RunArgs {
     // Affected
     #[arg(
         long,
+        env = "MOON_AFFECTED",
         help = "Only run target if affected by touched files or the environment",
         help_heading = HEADING_AFFECTED,
         group = "affected-args"
@@ -99,6 +103,14 @@ pub struct RunArgs {
         requires = "affected-args",
     )]
     pub status: Vec<TouchedStatus>,
+
+    #[arg(
+        long,
+        help = "Accept touched files from stdin for affected checks",
+        help_heading = HEADING_AFFECTED,
+        requires = "affected-args",
+    )]
+    pub stdin: bool,
 
     // Passthrough args (after --)
     #[arg(
@@ -134,12 +146,13 @@ pub async fn run_target(
     // Always query for a touched files list as it'll be used by many actions
     let touched_files = if vcs.is_enabled() {
         let local = is_local(args);
-        let result = query_touched_files(
+        let result = query_touched_files_with_stdin(
             &vcs,
             &QueryTouchedFilesOptions {
                 default_branch: !local && !is_test_env(),
                 local,
                 status: args.status.clone(),
+                stdin: args.stdin,
                 ..QueryTouchedFilesOptions::default()
             },
         )
@@ -179,6 +192,7 @@ pub async fn run_target(
         ci_check: false,
         dependents: args.dependents,
         interactive: args.interactive,
+        skip_affected: false,
     };
     let mut inserted_nodes = FxHashSet::default();
 
@@ -233,7 +247,11 @@ pub async fn run_target(
     }
 
     // Process all tasks in the graph
-    let (action_context, action_graph) = action_graph_builder.build();
+    let (mut action_context, action_graph) = action_graph_builder.build();
+
+    action_context
+        .initial_targets
+        .extend(target_locators.to_owned());
 
     let results = run_action_pipeline(
         session,

@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 use starbase_styles::color;
 use starbase_utils::json;
 use std::io::{IsTerminal, Read, stdin};
+// use std::time::Duration;
+// use tokio::io::AsyncReadExt;
+// use tokio::time::timeout;
 use tracing::{debug, trace, warn};
 
 #[derive(Clone, Default, Deserialize, Serialize)]
@@ -19,6 +22,7 @@ pub struct QueryTouchedFilesOptions {
     pub json: bool,
     pub local: bool,
     pub status: Vec<TouchedStatus>,
+    pub stdin: bool,
 }
 
 #[derive(Default, Deserialize, Serialize)]
@@ -54,8 +58,6 @@ pub async fn query_touched_files(
     vcs: &BoxedVcs,
     options: &QueryTouchedFilesOptions,
 ) -> miette::Result<QueryTouchedFilesResult> {
-    debug!("Querying for touched files");
-
     let bag = GlobalEnvBag::instance();
     let default_branch = vcs.get_default_branch().await?;
     let current_branch = vcs.get_local_branch().await?;
@@ -157,11 +159,26 @@ pub async fn query_touched_files_with_stdin(
     vcs: &BoxedVcs,
     options: &QueryTouchedFilesOptions,
 ) -> miette::Result<QueryTouchedFilesResult> {
+    debug!("Querying for touched files");
+
+    if !options.stdin {
+        return query_touched_files(vcs, options).await;
+    }
+
     let mut buffer = String::new();
 
     // Only read piped data when stdin is not a TTY,
     // otherwise the process will hang indefinitely waiting for EOF.
     if !stdin().is_terminal() {
+        // if let Ok(read_result) = timeout(
+        //     Duration::from_secs(10),
+        //     tokio::io::stdin().read_to_string(&mut buffer),
+        // )
+        // .await
+        // {
+        //     read_result.into_diagnostic()?;
+        // }
+
         stdin().read_to_string(&mut buffer).into_diagnostic()?;
     }
 
@@ -169,12 +186,16 @@ pub async fn query_touched_files_with_stdin(
     if !buffer.is_empty() {
         // As JSON
         if buffer.starts_with('{') {
+            debug!("Received from stdin as JSON");
+
             let result: QueryTouchedFilesResult = json::parse(&buffer)?;
 
             return Ok(result);
         }
         // As lines
         else {
+            debug!("Received from stdin as separate lines");
+
             let files =
                 FxHashSet::from_iter(buffer.split('\n').map(WorkspaceRelativePathBuf::from));
 
@@ -198,6 +219,7 @@ pub async fn load_touched_files(
         &QueryTouchedFilesOptions {
             default_branch: ci,
             local: !ci,
+            stdin: true,
             ..QueryTouchedFilesOptions::default()
         },
     )
